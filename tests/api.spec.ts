@@ -1,6 +1,12 @@
 import { test, expect } from '@playwright/test'
 
 test.describe('API tests', () => {
+  test('PrepFlow relationship actions require authentication', async ({ request }) => {
+    for (const name of ['createInterview', 'startPrepSession']) {
+      const response = await request.post(`/api/actions/${name}`, { data: {} })
+      expect(response.status()).toBe(401)
+    }
+  })
   test('auth proxy forwards to auth worker', async ({ request }) => {
     const res = await request.get('/api/auth/ok')
     expect(res.ok()).toBeTruthy()

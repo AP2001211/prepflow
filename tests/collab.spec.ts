@@ -31,6 +31,79 @@ test.skip(
     '--password-stdin`, or fetch existing pool accounts with `npx deepspace test accounts recover --all`.',
 )
 
+test('PrepFlow general preparation, optional interviews, and two-user privacy', async ({ users }) => {
+  const [alice, bob] = await users(2)
+  const prefix = `__test-${Date.now()}__`
+  await Promise.all([alice.page.goto('/home'), bob.page.goto('/home')])
+  await expect(alice.page.getByRole('heading', { name: 'Current Focus' })).toBeVisible()
+  await expect(bob.page.getByRole('heading', { name: 'Current Focus' })).toBeVisible()
+  const areaName = `${prefix} SQL`
+  await alice.page.getByLabel('Area name', { exact: true }).fill(areaName)
+  await alice.page.getByRole('button', { name: 'Create Prep Area', exact: true }).click()
+  await expect(alice.page.getByRole('heading', { name: areaName, exact: true })).toBeVisible()
+  await expect(bob.page.getByRole('heading', { name: areaName, exact: true })).toHaveCount(0)
+
+  // Never end a developer's pre-existing focus session for test setup.
+  const startButton = alice.page.getByRole('button', { name: 'Start focus session', exact: true })
+  test.skip(await startButton.count() === 0, 'The fixture user already has active preparation; preserve it and use a clean fixture account.')
+  const areaId = await alice.page.getByLabel('Prep Area', { exact: true }).locator('option').filter({ hasText: areaName }).getAttribute('value')
+  expect(areaId).toBeTruthy()
+  await alice.page.getByLabel('Prep Area', { exact: true }).selectOption(areaId!)
+  const intent = `${prefix} Practice window functions`
+  await alice.page.getByLabel('What do you intend to work on?').fill(intent)
+  await startButton.click()
+  const focus = alice.page.locator('article').filter({ has: alice.page.getByRole('heading', { name: intent, exact: true }) })
+  await expect(focus).toBeVisible()
+  await expect(focus.getByText('General preparation', { exact: false })).toBeVisible()
+  await expect(startButton).toHaveCount(0)
+  await expect(bob.page.getByRole('heading', { name: intent, exact: true })).toHaveCount(0)
+  await focus.getByLabel('Session notes — progress, difficulty, or where you stopped').fill('Unsure about partitioning; continued practicing.')
+  await focus.getByRole('button', { name: 'Report difficulty (keep working)', exact: true }).click()
+  await expect(focus.getByText('Difficulty reported during this attempt.', { exact: false })).toBeVisible()
+  await focus.getByRole('button', { name: 'Complete', exact: true }).click()
+  await expect(focus).toHaveCount(0)
+  const history = alice.page.locator('section').filter({ has: alice.page.getByRole('heading', { name: 'Recent Sessions', exact: true }) })
+  await expect(history.getByRole('heading', { name: intent, exact: true })).toBeVisible()
+  await expect(history.getByText('Encountered difficulty', { exact: false })).toBeVisible()
+
+  const company = `${prefix} Example`
+  await alice.page.getByLabel('Company', { exact: true }).fill(company)
+  await alice.page.getByLabel(areaName, { exact: true }).check()
+  await alice.page.getByRole('button', { name: 'Create Interview', exact: true }).click()
+  await expect(alice.page.getByRole('heading', { name: company, exact: true })).toBeVisible()
+  await expect(bob.page.getByRole('heading', { name: company, exact: true })).toHaveCount(0)
+
+  const interviewId = await alice.page.getByLabel('Interview (optional)', { exact: true }).locator('option').filter({ hasText: company }).getAttribute('value')
+  expect(interviewId).toBeTruthy()
+  for (const [button, outcome] of [['Stop', 'stopped'], ['End to switch', 'switched']] as const) {
+    const nextIntent = `${prefix} ${outcome} attempt`
+    await alice.page.getByLabel('Prep Area', { exact: true }).selectOption(areaId!)
+    await alice.page.getByLabel('Interview (optional)', { exact: true }).selectOption(interviewId!)
+    await alice.page.getByLabel('What do you intend to work on?').fill(nextIntent)
+    await alice.page.getByRole('button', { name: 'Start focus session', exact: true }).click()
+    const attempt = alice.page.locator('article').filter({ has: alice.page.getByRole('heading', { name: nextIntent, exact: true }) })
+    await expect(attempt).toBeVisible()
+    await expect(attempt.getByText(company, { exact: false })).toBeVisible()
+    await attempt.getByRole('button', { name: button, exact: true }).click()
+    await expect(attempt).toHaveCount(0)
+    const entry = history.locator('li').filter({ has: alice.page.getByRole('heading', { name: nextIntent, exact: true }) })
+    await expect(entry.getByText(outcome, { exact: false })).toBeVisible()
+  }
+  const tokenResponse = await bob.context.request.post('/api/auth/token', { data: {} })
+  expect(tokenResponse.ok()).toBe(true)
+  const { token } = await tokenResponse.json() as { token: string }
+  const forbiddenLink = await bob.context.request.post('/api/actions/createInterview', {
+    headers: { Authorization: `Bearer ${token}` }, data: { company: `${prefix} Forged`, prepAreaIds: [areaId] },
+  })
+  expect(await forbiddenLink.json()).toMatchObject({ success: false })
+  const forbiddenSession = await bob.context.request.post('/api/actions/startPrepSession', {
+    headers: { Authorization: `Bearer ${token}` }, data: { prepAreaId: areaId, interviewId, intent: `${prefix} Forged` },
+  })
+  expect(await forbiddenSession.json()).toMatchObject({ success: false })
+  // Deletion is unavailable by design. Named fixture records remain local;
+  // the test leaves its session ended and never changes unrelated records.
+})
+
 test('each browser renders its own signed-in account', async ({ users }) => {
   const [a, b] = await users(2)
 

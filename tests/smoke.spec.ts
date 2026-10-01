@@ -68,4 +68,11 @@ test.describe('Smoke tests', () => {
     await waitForApp(page)
     await expect(page.locator('text=404')).toBeVisible()
   })
+
+  test('PrepFlow workspace stays private while signed out', async ({ page }) => {
+    await page.goto('/home')
+    await expect(page.getByText('Sign in using the navigation above')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Current Focus' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Create Prep Area', exact: true })).toHaveCount(0)
+  })
 })
