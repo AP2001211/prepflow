@@ -21,6 +21,7 @@ export default function PlansPage() {
   return <div className="mx-auto max-w-5xl space-y-6 px-5 py-8">
     <h1 className="text-3xl font-semibold">Plans</h1>
     <Link to="/home" className="inline-block underline">Back to Current Focus</Link>
+    <Link to="/plans/suggest" className="inline-block underline">Help me plan</Link>
     <Section title="Your Plans">
       {plans.status === 'loading' && <p>Loading plans…</p>}{plans.error && <p role="alert">Could not load plans.</p>}
       {plans.status === 'ready' && !plans.records.length && <p>No plans yet. Plans can span hours, days, or weeks.</p>}

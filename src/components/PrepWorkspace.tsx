@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { useState } from 'react'
 import { CurrentFocus } from './CurrentFocus'
 import { ContinueWork } from './ContinueWork'
@@ -10,7 +11,7 @@ export function PrepWorkspace() {
   const [creating, setCreating] = useState(false)
   const focus = useFocus()
   return <div className="mx-auto max-w-5xl space-y-6 px-5 py-8">
-    <header><h1 className="text-3xl font-semibold">PrepFlow</h1><p className="mt-2 text-muted-foreground">Focus on your work, continue unfinished work, or choose what to start next.</p></header>
+    <header><h1 className="text-3xl font-semibold">PrepFlow</h1><p className="mt-2 text-muted-foreground">Focus on your work, continue unfinished work, or choose what to start next.</p><Link to="/plans/suggest" className="mt-3 inline-block underline">Help me plan</Link></header>
     <CurrentFocus />
     <ContinueWork />
     <PlanSummary />

@@ -13,6 +13,7 @@ import { registerAgentToolRoutes, resolveAppMembership } from 'deepspace/worker'
 import type { AgentToolAccessResult, JwtClaims } from 'deepspace/worker'
 import type { buildTools } from './tools.js'
 import { registerAiChatRoutes } from './chat-routes.js'
+import { registerPlannerRoutes } from './planner-routes.js'
 import { resolveAgentAuth, resolveAuth } from '../server/http-routes.js'
 import type { AppContext, Env } from '../../worker.js'
 
@@ -32,6 +33,8 @@ export interface RegisterAgentOptions {
   inApp?: boolean
   /** Enable the user's local Codex/Claude/etc. assistant. Defaults to true. */
   local?: boolean
+  /** Enable the focused, stateless PrepFlow planner. */
+  planner?: boolean
   /**
    * Optional app-specific gate for subscriptions, teams, roles, or app data.
    * It only narrows access after verified identity and app membership succeed.
@@ -75,6 +78,7 @@ function createAccessResolver(options: RegisterAgentOptions, resolveIdentity: ty
  * both the website AI and the local assistant. The CLI is only their bridge.
  */
 export function registerAgent(app: Hono<AppContext>, options: RegisterAgentOptions): void {
+  if (options.planner) registerPlannerRoutes(app, createAccessResolver(options, resolveAuth), options.tools)
   if (options.inApp !== false) {
     registerAiChatRoutes(app, createAccessResolver(options, resolveAuth), options.tools)
   }

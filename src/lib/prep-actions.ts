@@ -1,7 +1,7 @@
 import { getAuthToken } from 'deepspace'
 
 /** Resolve only after the server has accepted the underlying record write. */
-export type PrepActionName = 'createInterview' | 'createPlan' | 'createPlanItem' | 'addPlanItem' | 'closePlan' | 'startPrepSession' | 'endPrepSession' | 'reconcileCompletion' | 'reportStuck' | 'saveResumeContext'
+export type PrepActionName = 'acceptPrepPlan' | 'createInterview' | 'createPlan' | 'createPlanItem' | 'addPlanItem' | 'closePlan' | 'startPrepSession' | 'endPrepSession' | 'reconcileCompletion' | 'reportStuck' | 'saveResumeContext'
 export async function runPrepAction(name: PrepActionName, input: unknown): Promise<string> {
   const token = await getAuthToken()
   if (!token) throw new Error('Please sign in again.')

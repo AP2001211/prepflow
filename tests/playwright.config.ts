@@ -17,6 +17,9 @@ export default defineConfig({
   testMatch: '**/*.spec.ts',
   timeout: 30_000,
   retries: 0,
+  // Authenticated specs share the synthetic-account pool and its focus state.
+  // Serialize files so unrelated tests cannot start/stop each other's focus.
+  workers: 1,
   use: {
     baseURL: BASE_URL,
     headless: true,

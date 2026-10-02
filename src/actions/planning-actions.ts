@@ -29,14 +29,14 @@ function failure(error: string, code?: string): ActionResult {
 type Context = ActionContext<Env>
 type Row<T> = { recordId: string; createdBy: string; data: T }
 
-async function owned<T>(ctx: Context, collection: string, recordId: string): Promise<Row<T> | null> {
+export async function owned<T>(ctx: Context, collection: string, recordId: string): Promise<Row<T> | null> {
   const result = await ctx.tools.get(collection, recordId)
   if (!result.success || result.data.record.createdBy !== ctx.userId) return null
   return result.data.record as unknown as Row<T>
 }
 
 /** All privileged actions explicitly enforce caller role before using tools. */
-function action<T>(schema: z.ZodType<T>, handler: (ctx: Context, data: T) => Promise<ActionResult>): ActionHandler<Env> {
+export function action<T>(schema: z.ZodType<T>, handler: (ctx: Context, data: T) => Promise<ActionResult>): ActionHandler<Env> {
   return async (ctx) => {
     try {
       if (!await canWrite(ctx.tools, ctx.userId, ctx.env)) return failure('You do not have permission to change preparation.')
@@ -51,7 +51,7 @@ function action<T>(schema: z.ZodType<T>, handler: (ctx: Context, data: T) => Pro
   }
 }
 
-async function hasPendingCompletion(ctx: Context, planItemId: string): Promise<boolean> {
+export async function hasPendingCompletion(ctx: Context, planItemId: string): Promise<boolean> {
   const result = await ctx.tools.query('prep-sessions', {
     where: { createdBy: ctx.userId, planItemId, state: 'ended', outcome: 'completed' }, limit: 1,
   })

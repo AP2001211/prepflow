@@ -1,0 +1,77 @@
+import { describe, expect, it } from 'vitest'
+import { CONTEXT_LIMITS, prepReader } from './prep-context'
+import { buildTools } from './tools'
+import { contextFixture, existingProposal } from './planner-test-fixture'
+
+const now = Date.parse('2026-10-02T12:00:00Z')
+describe('Bounded caller-scoped planner reads', () => {
+  it('exposes exactly two read tools and scopes all reads to the executor identity', async () => {
+    const f = contextFixture()
+    expect(Object.keys(buildTools(f.executor))).toEqual(['get_prep_snapshot', 'get_work_context'])
+    const snapshot = await prepReader(f.executor).snapshot({}, now)
+    expect(snapshot.prepAreas.map((row) => row.id)).toEqual(['area'])
+    expect(snapshot.openWork.map((row) => row.id)).toEqual(['item'])
+    expect(snapshot.openWork[0]?.previouslyStarted).toBe(false)
+    expect(snapshot.openWork[0]?.planMemberships).toHaveLength(2)
+    expect(snapshot.openPlans.map((row) => row.id)).toEqual(['later'])
+    await expect(prepReader(f.executor).workContext('foreign-item')).rejects.toThrow('unavailable')
+    await expect(prepReader(f.executor).snapshot({ prepAreaIds: ['foreign-area'] })).rejects.toThrow('unavailable')
+    expect(f.executor.mock.calls.every(([name]) => name === 'records.get' || name === 'records.query')).toBe(true)
+  })
+  it('caps records, text and recent history, explicitly describing partial coverage', async () => {
+    const f = contextFixture()
+    for (let i = 0; i < 40; i++) f.add('prep-areas', `area-${i}`, { name: `Area ${i}`, notes: 'x'.repeat(1000) })
+    for (let i = 0; i < 40; i++) f.add('prep-sessions', `session-${i}`, { planItemId: 'item', prepAreaId: 'area', startedAt: '2026-10-01T12:00:00Z', endedAt: '2026-10-01T12:10:00Z', state: 'ended', outcome: 'switched', encounteredStuck: true, notes: 'y'.repeat(10000) })
+    const snapshot = await prepReader(f.executor).snapshot({}, now)
+    expect(snapshot.prepAreas).toHaveLength(CONTEXT_LIMITS.areas)
+    expect(snapshot.coverage.areas.truncated).toBe(true)
+    expect(snapshot.prepAreas.every((row) => (row.notesPreview?.length ?? 0) <= CONTEXT_LIMITS.previewChars)).toBe(true)
+    expect(snapshot.recentFocus).toHaveLength(CONTEXT_LIMITS.recentIntervals)
+    expect(snapshot.recentFocus[0]).toMatchObject({ focusMinutes: 10, encounteredDifficulty: true, outcome: 'switched' })
+    expect(snapshot.recentFocus[0]).not.toHaveProperty('notes')
+    expect(snapshot.coverageNotices.join(' ')).toContain('not lifetime history')
+    const detail = await prepReader(f.executor).workContext('item')
+    expect(detail.recentIntervals).toHaveLength(5)
+    expect(detail.recentIntervals[0]?.notes).toHaveLength(CONTEXT_LIMITS.detailChars)
+    expect(detail.coverage.truncated).toBe(true)
+  })
+  it('selects the latest ended interval before looking for context; never falls back', async () => {
+    const f = contextFixture()
+    const base = { planItemId: 'item', prepAreaId: 'area', startedAt: '2026-10-01T12:00:00Z', state: 'ended', outcome: 'switched', encounteredStuck: false }
+    f.add('prep-sessions', 'older', { ...base, endedAt: '2026-10-01T12:10:00Z', leftOff: 'Stale blocker', nextStep: 'Stale next' })
+    f.add('prep-sessions', 'latest', { ...base, endedAt: '2026-10-01T13:10:00Z' })
+    const snapshot = await prepReader(f.executor).snapshot({}, now)
+    expect(snapshot.openWork[0]).toMatchObject({ previouslyStarted: true, latestResumeContext: { sessionId: 'latest', leftOff: null, nextStep: null } })
+    expect((await prepReader(f.executor).workContext('item')).latestResumeContext).toMatchObject({ sessionId: 'latest', leftOff: null, nextStep: null })
+    const latest = f.tables.get('prep-sessions')?.find((row) => row.recordId === 'latest')
+    if (!latest) throw new Error('Missing fixture')
+    latest.data.leftOff = 'Current blocker'
+    expect((await prepReader(f.executor).snapshot({}, now)).openWork[0]?.latestResumeContext?.leftOff).toBe('Current blocker')
+  })
+  it('reports current focus, recent completed work and upcoming optional interviews', async () => {
+    const f = contextFixture()
+    f.add('prep-sessions', 'active', { planItemId: 'item', intent: 'Window functions', state: 'active', startedAt: '2026-10-02T11:00:00Z' })
+    f.add('plan-items', 'done', { prepAreaId: 'area', intent: 'Joins', status: 'completed', completedAt: '2026-10-01T13:00:00Z' })
+    f.add('interviews', 'future', { company: 'Example', scheduledDate: '2026-10-07', prepAreaIds: ['area'] })
+    f.add('interviews', 'past', { company: 'Past', scheduledDate: '2026-09-01', prepAreaIds: ['area'] })
+    const snapshot = await prepReader(f.executor).snapshot({}, now)
+    expect(snapshot.openWork[0]?.currentlyFocused).toBe(true)
+    expect(snapshot.currentFocus).toHaveLength(1)
+    expect(snapshot.recentlyCompleted.map((row) => row.id)).toEqual(['done'])
+    expect(snapshot.interviews.map((row) => row.id)).toEqual(['future'])
+    expect((await prepReader(f.executor).snapshot({ interviewId: 'past' }, now)).interviews).toHaveLength(2)
+  })
+  it('enriches canonical names and rejects fabricated/foreign references and completed/pending work', async () => {
+    const f = contextFixture(); const reader = prepReader(f.executor)
+    expect(await reader.enrich(existingProposal)).toEqual([{ intent: 'Window functions', prepAreaId: 'area', prepAreaName: 'SQL', previouslyStarted: false }])
+    for (const id of ['missing', 'foreign-item']) await expect(reader.enrich({ ...existingProposal, items: [{ ...existingProposal.items[0], existingPlanItemId: id }] })).rejects.toThrow('unavailable')
+    await expect(reader.enrich({ ...existingProposal, items: [{ kind: 'new', intent: 'Forged', prepAreaId: 'foreign-area', estimatedMinutes: 30, reason: 'Invalid' }] })).rejects.toThrow('unavailable')
+    await expect(reader.enrich({ ...existingProposal, items: [{ kind: 'new', intent: 'Forged', prepAreaId: 'area', interviewId: 'missing', estimatedMinutes: 30, reason: 'Invalid' }] })).rejects.toThrow('unavailable')
+    f.add('prep-sessions', 'pending', { planItemId: 'item', state: 'ended', outcome: 'completed', endedAt: '2026-10-02T11:00:00Z' })
+    await expect(reader.enrich(existingProposal)).rejects.toThrow('reconciliation')
+    const item = f.tables.get('plan-items')?.find((row) => row.recordId === 'item')
+    if (!item) throw new Error('Missing fixture')
+    item.data.status = 'completed'
+    await expect(reader.enrich(existingProposal)).rejects.toThrow('no longer open')
+  })
+})

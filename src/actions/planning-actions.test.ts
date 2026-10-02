@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { ActionContext, ActionTools } from 'deepspace/worker'
 import type { Env } from '../../worker'
+import { acceptPrepPlan } from './planner-acceptance'
 import { planningActions } from './planning-actions'
 
 // Unit-test the action boundary, including accepted writes followed by failure.
@@ -38,7 +39,7 @@ function fixture() {
   put('interviews', 'interview', { company: 'Example', prepAreaIds: ['area'] })
   put('plan-items', 'item', { prepAreaId: 'area', intent: 'Window functions', status: 'open' })
   put('plans', 'plan', { title: 'A week of prep', planItemIds: ['item'] })
-  const call = (name: keyof typeof planningActions, params: Record<string, unknown>, userId = 'alice') => planningActions[name]({ userId, params, tools: { get, query, create, update } as unknown as ActionTools, env: { OWNER_USER_ID: 'owner' } as Env, callerJwt: 'unit-test' } satisfies ActionContext<Env>)
+  const call = (name: keyof typeof planningActions | 'acceptPrepPlan', params: Record<string, unknown>, userId = 'alice') => (name === 'acceptPrepPlan' ? acceptPrepPlan : planningActions[name])({ userId, params, tools: { get, query, create, update } as unknown as ActionTools, env: { OWNER_USER_ID: 'owner' } as Env, callerJwt: 'unit-test' } satisfies ActionContext<Env>)
   const start = async (planId?: string) => {
     const result = await call('startPrepSession', { planItemId: 'item', ...(planId ? { planId } : {}) })
     expect(result.success).toBe(true)
@@ -258,5 +259,62 @@ describe('Cross-user relationships and roles', () => {
   it('rejects closing another user’s plan', async () => {
     const f = fixture(); f.row('plans', 'plan')!.createdBy = 'bob'
     expect((await f.call('closePlan', { planId: 'plan' })).success).toBe(false); expect(f.update).not.toHaveBeenCalled()
+  })
+})
+
+describe('Reviewed planner acceptance (no model calls)', () => {
+  const input = () => ({ requestId: '00000000-0000-4000-8000-000000000042', availableMinutes: 60, recommendation: {
+    title: 'Focused prep', rationale: 'Use existing work, then practice joins', items: [
+      { kind: 'existing', existingPlanItemId: 'item', estimatedMinutes: 30, reason: 'Continue' },
+      { kind: 'new', prepAreaId: 'area', interviewId: 'interview', intent: 'Practice joins', estimatedMinutes: 20, reason: 'Relevant interview' },
+    ],
+  } })
+  it('reuses existing work, creates only new work, preserves order and requested budget without estimates', async () => {
+    const f = fixture(); const result = await f.call('acceptPrepPlan', input())
+    expect(result.success).toBe(true)
+    const planId = 'suggested-plan-alice-00000000-0000-4000-8000-000000000042'
+    expect(f.row('plans', planId)?.data).toEqual({ title: 'Focused prep', budgetMinutes: 60, planItemIds: ['item', `${planId}-item-1`] })
+    expect(f.row('plan-items', `${planId}-item-1`)?.data).toEqual({ prepAreaId: 'area', interviewId: 'interview', intent: 'Practice joins', status: 'open' })
+    expect(f.row('plans', 'plan')?.data.planItemIds).toEqual(['item'])
+    expect(f.create).toHaveBeenCalledTimes(2)
+    expect(f.create.mock.calls.every(([collection]) => collection !== 'prep-sessions')).toBe(true)
+    expect((await f.call('acceptPrepPlan', input())).success).toBe(true)
+    expect(f.create).toHaveBeenCalledTimes(2)
+    const changed = input(); changed.recommendation.items[1]!.intent = 'Different work'
+    expect((await f.call('acceptPrepPlan', changed)).success).toBe(false)
+    expect(f.create).toHaveBeenCalledTimes(2)
+  })
+  it.each(['completed', 'pending', 'foreign-item', 'foreign-area', 'foreign-interview', 'missing-area', 'missing-interview'])('rejects %s before writes', async (mode) => {
+    const f = fixture()
+    if (mode === 'completed') f.put('plan-items', 'item', { prepAreaId: 'area', intent: 'Window functions', status: 'completed' })
+    if (mode === 'pending') f.put('prep-sessions', 'pending', { planItemId: 'item', state: 'ended', outcome: 'completed' })
+    if (mode === 'foreign-item') f.put('plan-items', 'item', { prepAreaId: 'area', intent: 'Window functions', status: 'open' }, 'bob')
+    if (mode === 'foreign-area') f.put('prep-areas', 'area', { name: 'SQL' }, 'bob')
+    if (mode === 'foreign-interview') f.put('interviews', 'interview', { company: 'Other' }, 'bob')
+    const data = input()
+    if (mode === 'missing-area') data.recommendation.items[1]!.prepAreaId = 'missing'
+    if (mode === 'missing-interview') data.recommendation.items[1]!.interviewId = 'missing'
+    expect((await f.call('acceptPrepPlan', data)).success).toBe(false)
+    expect(f.create).not.toHaveBeenCalled()
+  })
+  it('rejects duplicate references, over-budget proposals and cross-user acceptance', async () => {
+    const f = fixture()
+    const duplicate = input(); duplicate.recommendation.items = [duplicate.recommendation.items[0]!, duplicate.recommendation.items[0]!]
+    expect((await f.call('acceptPrepPlan', duplicate)).success).toBe(false)
+    expect((await f.call('acceptPrepPlan', { ...input(), availableMinutes: 20 })).success).toBe(false)
+    f.put('users', 'bob', { role: 'member' }, 'bob')
+    expect((await f.call('acceptPrepPlan', input(), 'bob')).success).toBe(false)
+    expect(f.create).not.toHaveBeenCalled()
+  })
+  it('reuses a saved new item after the plan write fails, without resetting it', async () => {
+    const f = fixture(); const original = f.create.getMockImplementation()!
+    let fail = true
+    f.create.mockImplementation(async (collection, data, id) => {
+      if (collection === 'plans' && fail) { fail = false; throw new Error('Unavailable') }
+      return original(collection, data, id)
+    })
+    expect((await f.call('acceptPrepPlan', input())).success).toBe(false)
+    expect((await f.call('acceptPrepPlan', input())).success).toBe(true)
+    expect(f.create.mock.calls.filter(([collection]) => collection === 'plan-items')).toHaveLength(1)
   })
 })
