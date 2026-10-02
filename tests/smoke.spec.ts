@@ -76,3 +76,26 @@ test.describe('Smoke tests', () => {
     await expect(page.getByRole('button', { name: 'Create Prep Area', exact: true })).toHaveCount(0)
   })
 })
+
+test('workspace navigation exposes separate protected destinations', async ({ page }) => {
+  await page.goto('/home')
+  const nav = page.getByTestId('app-navigation')
+  for (const [label, path] of [['Plans', '/plans'], ['My Prep', '/prep'], ['History', '/history']] as const) {
+    await nav.getByRole('link', { name: label, exact: true }).click()
+    await expect(page).toHaveURL(new RegExp(`${path}$`))
+    await expect(nav.getByRole('link', { name: label, exact: true })).toHaveAttribute('aria-current', 'page')
+    await expect(page.getByRole('heading', { name: 'Sign in to continue', exact: true })).toBeVisible()
+  }
+  await page.goto('/plans/unknown-plan')
+  await expect(page.getByRole('heading', { name: 'Sign in to continue', exact: true })).toBeVisible()
+})
+
+test('mobile navigation reaches workspace destinations', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/home')
+  const nav = page.getByTestId('app-navigation')
+  await nav.getByRole('button', { name: 'Toggle menu', exact: true }).click()
+  await nav.getByRole('link', { name: 'Plans', exact: true }).last().click()
+  await expect(page).toHaveURL(/\/plans$/)
+  await expect(nav.getByRole('button', { name: 'Toggle menu', exact: true })).toHaveAttribute('aria-expanded', 'false')
+})

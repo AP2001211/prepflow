@@ -126,6 +126,7 @@ export default function Navigation() {
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem render={<Link to="/settings" />}>Settings</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => signOut()}>
                   <LogOut aria-hidden />
                   Sign out

@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 
 test.describe('API tests', () => {
   test('PrepFlow relationship actions require authentication', async ({ request }) => {
-    for (const name of ['createInterview', 'startPrepSession']) {
+    for (const name of ['createInterview', 'createPlan', 'createPlanItem', 'addPlanItem', 'closePlan', 'startPrepSession', 'endPrepSession', 'reportStuck', 'saveResumeContext', 'reconcileCompletion']) {
       const response = await request.post(`/api/actions/${name}`, { data: {} })
       expect(response.status()).toBe(401)
     }
