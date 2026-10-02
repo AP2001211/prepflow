@@ -19,7 +19,6 @@ import {
   YjsRoom,
 } from 'deepspace/worker'
 import type { DOBindings, DOManifest, Job, JobContext } from 'deepspace/worker'
-import { AI_CHATS_SCHEMA } from 'deepspace/schema'
 import { registerAgent } from './src/ai/agent.js'
 import { buildTools } from './src/ai/tools.js'
 import { tasks as cronTasks, runTask as runCronTask } from './src/cron.js'
@@ -137,12 +136,8 @@ app.use('*', async (c, next) => {
 registerAuthAndIntegrationRoutes(app)
 registerRealtimeRoutes(app)
 registerActionRoutes(app, resolveAuth)
-// The in-app assistant stores chat history in `ai-chats` / `ai-messages`,
-// which only the copilot overlay declares. When present, registerAgent enables
-// both that website AI and the user's local Codex/Claude/etc. assistant.
-if (schemas.some((schema) => schema.name === AI_CHATS_SCHEMA.name)) {
-  registerAgent(app, { tools: buildTools })
-}
+// One domain planner, with no chat history or autonomous mutation surface.
+registerAgent(app, { tools: buildTools, planner: true, inApp: false, local: false })
 registerPlatformProxyRoutes(app)
 registerStaticRoutes(app)
 
