@@ -64,3 +64,13 @@ describe('Phase 2 schemas', () => {
     expect(planItemsSchema.columns.find((column) => column.name === 'status')).toMatchObject({ required: true, default: 'open', interpretation: { kind: 'select', options: ['open', 'completed'] } })
   })
 })
+
+describe('daily plan schema', () => {
+  it('keeps date optional, immutable, without a default and binds uniqueness to caller', () => {
+    expect(plansSchema.columns.find((column) => column.name === 'planDate')).toEqual({ name: 'planDate', storage: 'text', interpretation: { kind: 'date' }, immutable: true })
+    expect(plansSchema.columns.find((column) => column.name === 'userId')).toMatchObject({ userBound: true, immutable: true })
+    expect(plansSchema.uniqueOn).toEqual(['userId', 'planDate'])
+    expect(plansSchema.ownerField).toBeUndefined()
+    expect(lintSchema(plansSchema)).toEqual([])
+  })
+})

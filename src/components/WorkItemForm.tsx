@@ -8,7 +8,7 @@ import { runPrepAction } from '../lib/prep-actions'
 import { Button, Input, Textarea } from './ui'
 import { Field, selectClass } from './prep-ui'
 
-export function WorkItemForm({ planId, startNow = false, onSaved }: { planId?: string; startNow?: boolean; onSaved?: () => void }) {
+export function WorkItemForm({ planId, startNow = false, onSaved, initialPrepAreaId = '' }: { initialPrepAreaId?: string; planId?: string; startNow?: boolean; onSaved?: () => void }) {
   const focus = useFocus()
   const areas = useQuery<PrepArea>('prep-areas', { orderBy: 'createdAt', orderDir: 'desc' })
   const interviews = useQuery<Interview>('interviews', { orderBy: 'createdAt', orderDir: 'desc' })
@@ -27,7 +27,7 @@ export function WorkItemForm({ planId, startNow = false, onSaved }: { planId?: s
   }}>
     {feedback.error && <p role="alert">{feedback.error}</p>}{feedback.notice && <p role="status">{feedback.notice}</p>}
     <fieldset disabled={!ready || feedback.busy} className="space-y-3">
-      <Field label="Prep Area"><select name="prepAreaId" className={selectClass} required defaultValue=""><option value="" disabled>Choose an area</option>{areas.records.map((area) => <option key={area.recordId} value={area.recordId}>{area.data.name}</option>)}</select></Field>
+      <Field label="Prep Area"><select name="prepAreaId" className={selectClass} required defaultValue={initialPrepAreaId}><option value="" disabled>Choose an area</option>{areas.records.map((area) => <option key={area.recordId} value={area.recordId}>{area.data.name}</option>)}</select></Field>
       <Field label="Interview (optional)"><select name="interviewId" className={selectClass}><option value="">General preparation</option>{interviews.records.map((row) => <option key={row.recordId} value={row.recordId}>{row.data.company}</option>)}</select></Field>
       <Field label="What do you intend to work on?"><Input name="intent" required maxLength={10000} /></Field>
       {startNow && <Field label="Starting notes (optional)"><Textarea name="notes" maxLength={10000} /></Field>}

@@ -1,7 +1,6 @@
 import { useQuery } from 'deepspace'
 import { useFocus } from './FocusController'
 import { FocusAttempt } from './FocusAttempt'
-import { Section } from './prep-ui'
 import { Button } from './ui'
 import { runPrepAction } from '../lib/prep-actions'
 import { precedingInterval } from '../lib/focus'
@@ -11,7 +10,7 @@ export function CurrentFocus() {
   const focus = useFocus()
   const areas = useQuery<PrepArea>('prep-areas')
   const interviews = useQuery<Interview>('interviews')
-  return <Section title="Current Focus">
+  return <section className="focus-content"><h2 className="focus-eyebrow">Current Focus</h2>
     {!focus.loaded && <p role="status">Loading focus…</p>}
     {(focus.sessions.error || focus.items.error) && <p role="alert">Could not load focus. Reconnect or reload.</p>}
     {focus.active.length > 1 && <p role="alert">You have {focus.active.length} active sessions, possibly from simultaneous starts in different tabs. End the extra attempts below. Starting another session is disabled.</p>}
@@ -28,5 +27,5 @@ export function CurrentFocus() {
     {focus.awaitingFocus && <p role="status">Your session was accepted. Waiting for the live workspace to update…</p>}
     {focus.loaded && !focus.active.length && !focus.awaitingFocus && <p>No current focus. Resume unfinished work or start an attempt below.</p>}
     {focus.pending.map((row) => <div key={row.recordId} className="mt-4 space-y-2"><p role="alert">Focus on “{row.data.intent}” has ended. Item completion still needs confirmation; this work cannot be resumed yet.</p><Button disabled={!focus.ready} onClick={() => void focus.save(async () => { await runPrepAction('reconcileCompletion', { sessionId: row.recordId }); if (focus.completionRetryId === row.recordId) focus.setCompletionRetryId(null) }, 'Item completion confirmed.')}>Retry completion</Button></div>)}
-  </Section>
+  </section>
 }

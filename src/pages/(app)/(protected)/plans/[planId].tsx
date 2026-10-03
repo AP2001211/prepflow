@@ -23,13 +23,14 @@ export default function PlanDetailPage() {
   return <div className="mx-auto max-w-5xl space-y-6 px-5 py-8">
     <Link to="/plans" className="underline">Back to Plans</Link>
     <h1 className="text-3xl font-semibold break-words">{plan.data.title}</h1>
+    {plan.data.planDate && <p className="eyebrow">Daily Plan · {plan.data.planDate}</p>}
     <p>{plan.data.closedAt ? `Closed ${dateTime(plan.data.closedAt)} — membership is fixed` : 'Open plan'}{plan.data.budgetMinutes ? ` · ${plan.data.budgetMinutes} minute budget` : ''}{plan.data.startsAt ? ` · From ${dateTime(plan.data.startsAt)}` : ''}{plan.data.endsAt ? ` · Until ${dateTime(plan.data.endsAt)}` : ''}</p>
     {feedback.error && <p role="alert">{feedback.error}</p>}{feedback.notice && <p role="status">{feedback.notice}</p>}
     <Section title="Intended Work">
       {!plan.data.planItemIds.length && <p>No intended work yet. Add new work or include an existing item below.</p>}
       <ol className="list-inside list-decimal space-y-4">{plan.data.planItemIds.map((id) => { const item = focus.items.records.find((row) => row.recordId === id); return <li key={id}>{item ? <WorkItemRow item={item} plans={plans.records} plan={plan} /> : 'Intended work unavailable'}</li> })}</ol>
     </Section>
-    {!plan.data.closedAt && <>
+    {!plan.data.closedAt && !plan.data.planDate && <>
       <Section title="Add New Intended Work"><WorkItemForm key={plan.recordId} planId={plan.recordId} /></Section>
       <Section title="Include Existing Unfinished Work">
         <p className="mb-3 text-sm">Include the same item without duplicating it or removing it from another plan.</p>

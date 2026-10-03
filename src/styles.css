@@ -94,6 +94,64 @@
   /* Animations */
   --animate-pulse-glow: pulse-glow 2s ease-in-out infinite;
 }
+/* Immersive Focus only: the landscape asset never enters the Home shell. */
+main:has(.focus-workspace) {
+  background-color: var(--color-home-canvas);
+  background-image: linear-gradient(to bottom, rgba(253,248,234,.35), rgba(253,248,234,.18) 360px, rgba(250,242,223,.1) 520px, var(--color-home-canvas) 920px), url('/images/focus-landscape.png');
+  background-size: auto 950px;
+  background-position: center top;
+  background-repeat: no-repeat;
+}
+.focus-workspace { width: 100%; max-width: 1400px; margin-inline: auto; padding: 28px 20px 48px; }
+.focus-workspace > .quiet-link { color: var(--color-foreground); }
+.focus-content { margin-top: 36px; }
+.focus-eyebrow { @apply mb-4 inline-block rounded-full bg-background px-4 py-2 text-xs font-medium uppercase tracking-widest text-foreground; }
+.focus-attempt { min-width: 0; margin-bottom: 32px; }
+.focus-scene { display: grid; gap: 28px; align-items: start; padding-bottom: 36px; }
+.focus-identity { min-width: 0; }
+.focus-task-title { font-size: clamp(32px, 4vw, 52px); font-weight: 500; line-height: 1.12; letter-spacing: -.035em; overflow-wrap: anywhere; }
+.focus-task-context { margin-top: 12px; font-size: 16px; overflow-wrap: anywhere; }
+.focus-started { margin-top: 12px; font-size: 12px; }
+.focus-time { text-align: center; }
+.focus-elapsed { font-size: clamp(52px, 6vw, 88px); font-weight: 400; font-variant-numeric: tabular-nums; letter-spacing: -.04em; line-height: 1.1; overflow-wrap: anywhere; }
+.focus-time-label { margin-top: 8px; font-size: 14px; }
+.focus-session-context { @apply space-y-4 rounded-2xl border border-border p-5 text-sm; background: var(--color-surface-raised-warm); overflow-wrap: anywhere; }
+.focus-context-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.focus-context-heading h4 { font-size: 16px; font-weight: 500; }
+.focus-context-heading svg { color: var(--color-primary); flex-shrink: 0; }
+.focus-session-context h5 { font-weight: 500; margin-bottom: 4px; }
+.focus-session-context > div + div { border-top: 1px solid var(--color-border); padding-top: 12px; }
+.focus-session-context p { white-space: pre-wrap; }
+.focus-context-empty { color: var(--color-muted-foreground); }
+.focus-notes { background: var(--color-surface-raised-warm); border: 1px solid var(--color-border); border-radius: 20px; padding: 20px; }
+.focus-notes label > span { display: inline-block; margin-bottom: 12px; font-size: 14px; font-weight: 500; }
+.focus-notebook { border: 1px solid var(--color-border); border-radius: 12px; overflow: hidden; }
+.notebook-heading { padding: 14px 20px; border-bottom: 1px solid var(--color-border); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 13px; color: var(--color-muted-foreground); overflow-wrap: anywhere; }
+.notebook-writing { display: grid; grid-template-columns: 40px minmax(0,1fr); align-items: start; }
+.notebook-gutter { overflow: hidden; padding-top: 20px; border-right: 1px solid var(--color-border); color: var(--color-muted-foreground); text-align: center; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 13px; }
+.notebook-gutter span { display: block; height: 24px; line-height: 24px; }
+.focus-notes textarea { display: block; height: 320px; min-height: 240px; width: 100%; border: 0; border-radius: 0; padding: 20px; background: var(--color-surface-raised-warm); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 14px; line-height: 24px; resize: vertical; box-shadow: none; }
+.focus-notebook:focus-within { outline: 2px solid var(--color-primary-control); outline-offset: 3px; }
+.focus-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px; margin-top: 24px; }
+.focus-actions button { min-height: 44px; height: auto; white-space: normal; }
+.focus-actions .focus-switch { color: var(--color-muted-foreground); font-size: 12px; }
+.focus-helper { max-width: 680px; margin: 20px auto 0; font-size: 12px; line-height: 1.6; color: var(--color-muted-foreground); }
+@media (min-width: 768px) {
+  .focus-workspace { padding: 36px 48px 64px; }
+  .focus-content { margin-top: 48px; }
+  .focus-scene { grid-template-columns: minmax(0, 1fr) minmax(240px, 300px); column-gap: 48px; row-gap: 28px; }
+  .focus-identity { grid-column: 1; grid-row: 1; }
+  .focus-time { grid-column: 1; grid-row: 2; padding-block: 8px; }
+  .focus-session-context { grid-column: 2; grid-row: 1 / span 2; }
+  .focus-notes { padding: 24px; }
+  .notebook-writing { grid-template-columns: 60px minmax(0,1fr); }
+}
+@media (max-width: 767px) {
+  .focus-actions > button:nth-child(2) { order: -1; }
+  .focus-actions .focus-switch { flex-basis: 100%; }
+  .focus-notes { padding: 14px; }
+  .focus-notes textarea { padding-inline: 12px; }
+}
 
 /* Theme override blocks live in `themes.css` — imported above. */
 
@@ -232,3 +290,266 @@
     touch-action: manipulation;
   }
 }
+
+/* Shared product hierarchy; no asset or styling dependencies. */
+@theme {
+  --font-display: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --spacing-panel: 2rem;
+  --spacing-hero: 3rem;
+}
+@layer components {
+  .home-layout { @apply mx-auto max-w-5xl space-y-7 px-5 py-8 sm:py-12; }
+  .home-panel { @apply rounded-2xl border border-border bg-card p-5 shadow-card sm:p-panel; }
+  .home-hero { @apply space-y-5 rounded-3xl border border-border bg-card p-6 shadow-card sm:p-hero; }
+  .focus-hero { @apply bg-accent border-primary; }
+  .quiet-focus { @apply space-y-1 rounded-2xl border border-border px-5 py-4; }
+  .display-heading { @apply font-display text-3xl tracking-tight sm:text-4xl; }
+  .display-title { @apply font-display text-3xl leading-tight tracking-tight sm:text-4xl; }
+  .eyebrow { @apply text-xs font-semibold uppercase tracking-widest text-muted-foreground; }
+  .primary-link { @apply inline-flex min-h-11 items-center rounded-full bg-primary px-6 py-3 font-medium text-primary-foreground transition-colors hover:bg-primary/80 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring; }
+  .quiet-link { @apply inline-block text-sm font-medium underline decoration-border underline-offset-4 hover:decoration-foreground focus-visible:outline-2 focus-visible:outline-ring; }
+  .today-work-row { @apply flex flex-wrap items-center gap-3 rounded-xl border border-border p-3 sm:p-4; }
+  .work-number { @apply flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-sm text-secondary-foreground; }
+  .status-pill { @apply rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground; }
+}
+
+/* Section 1B: application composition. The planning CTA uses one 16px radius. */
+@layer components {
+  .home-layout { @apply space-y-9 sm:py-10; }
+  .workspace-heading { @apply mt-1 text-2xl font-semibold tracking-tight; }
+  .display-heading { @apply text-4xl font-semibold leading-[1.08] tracking-tight sm:text-5xl; }
+  .display-title { @apply text-3xl font-semibold leading-tight tracking-tight sm:text-4xl; }
+  .plan-invitation { @apply space-y-5 py-7 sm:py-10; }
+  .plan-invitation .display-title { @apply text-4xl sm:text-5xl; }
+  .focus-hero { @apply relative gap-5 border-0 bg-primary text-primary-foreground shadow-none sm:p-8; }
+  .focus-hero .eyebrow { @apply text-primary-foreground; }
+  .focus-intro { @apply text-sm; }
+  .focus-summary-content { @apply space-y-2 sm:pr-52; }
+  .focus-summary-content .display-title { @apply text-2xl sm:text-3xl; }
+  .focus-summary-timer { @apply pt-3 text-3xl font-medium tabular-nums sm:absolute sm:right-8 sm:top-12 sm:pt-0 sm:text-4xl; }
+  .focus-return { @apply inline-flex min-h-11 items-center justify-center rounded-xl bg-background px-5 py-3 font-semibold text-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-background sm:absolute sm:bottom-8 sm:right-8; }
+  .today-plan { @apply space-y-4; }
+  .today-work-surface { @apply overflow-hidden rounded-2xl bg-card px-4 sm:px-6; }
+  .today-work-row { @apply rounded-none border-0 border-b border-border px-0 py-5 last:border-b-0; }
+  .work-number { @apply rounded-lg bg-background font-semibold; }
+  .home-secondary { @apply grid gap-8 border-t border-border pt-7 md:grid-cols-[2fr_1fr] md:items-start; }
+  .pick-back-up { @apply min-w-0; }
+  .resume-row { @apply relative space-y-1 border-b border-border pb-4 pr-20; }
+  .resume-row button { @apply absolute right-0 top-0; }
+  .flexible-work { @apply space-y-3 rounded-2xl bg-secondary p-5; }
+  .build-action { display: inline-flex; align-items: center; min-height: 60px; padding: 5px; border: 1px solid var(--color-background); border-radius: 16px; background: var(--color-primary); color: var(--color-primary-foreground); font-weight: 600; text-decoration: none; cursor: pointer; }
+  .build-action-inset { display:flex; align-items:center; justify-content:center; align-self:stretch; width:52px; min-height:48px; border-radius:11px; background:var(--color-background); color:var(--color-primary); }
+  .build-action-label { padding: 0 22px; }
+  .build-action:hover:not(:disabled) { box-shadow: 0 0 0 2px var(--color-primary); }
+  .build-action:focus-visible { outline: 3px solid var(--color-foreground); outline-offset: 4px; }
+  .build-action:disabled { cursor: not-allowed; opacity: 0.65; }
+  .planner-page { @apply mx-auto max-w-3xl space-y-6 px-5 py-8 sm:py-12; }
+  .planner-form { @apply rounded-2xl bg-card p-5 sm:p-8; }
+  .planner-form fieldset { @apply space-y-6; }
+  .planner-form textarea { @apply min-h-24; }
+  .duration-options { @apply flex flex-wrap gap-2; }
+  .duration-options button { @apply min-h-11 rounded-xl border border-input bg-card px-4 py-3 font-medium text-foreground focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-foreground disabled:opacity-60; }
+  .duration-options button[aria-pressed="true"] { @apply border-primary bg-primary text-primary-foreground; }
+  .planner-review { @apply space-y-5 rounded-2xl bg-card p-5 sm:p-8; }
+  .recommendation-list { @apply space-y-0; }
+  .recommendation-list > li { @apply flex gap-4 border-t border-border py-5; }
+  .recommendation-list > li > div { @apply min-w-0 space-y-2; }
+  .recommendation-number { @apply flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-background font-semibold; }
+}
+@layer components {
+  .build-action { font-size: 20px; font-weight: 700; }
+  .focus-hero .eyebrow { @apply inline-block rounded-md bg-background px-2 py-1 text-foreground; }
+  .focus-intro { @apply text-xl font-bold; }
+  .focus-summary-content > p:not(.focus-intro):not(.focus-summary-timer) { @apply inline-block rounded-md bg-background px-2 py-1 text-foreground; }
+  .duration-options button[aria-pressed="true"] { font-size: 19px; font-weight: 700; }
+}
+
+@layer components {
+  .duration-options button { border-radius: 8px; }
+  .home-layout .today-plan-subordinate .display-title { @apply text-2xl; }
+  [data-theme="prepflow"] [data-slot="button"].bg-primary { background-color: var(--color-primary-control); }
+}
+@layer components {
+  .focus-hero:has(article ~ article) .focus-summary-content { padding-right: 0; }
+  .focus-hero:has(article ~ article) .focus-summary-timer,
+  .focus-hero:has(article ~ article) .focus-return { position: static; }
+}
+
+/* Home composition: a wider canvas without changing reading/form pages. */
+@layer components {
+  .home-layout, .home-nav-canvas { width: 100%; max-width: 1320px; margin-inline: auto; padding-inline: 20px; }
+  .home-layout { @apply space-y-7; max-width: 1640px; }
+  .home-heading { @apply flex flex-wrap items-center justify-between gap-5; }
+  .home-greeting { @apply mt-2 text-3xl font-semibold leading-tight tracking-tight sm:text-5xl; }
+  .home-greeting-detail { @apply mt-2 text-lg text-muted-foreground; }
+  .home-interview { @apply flex max-w-sm flex-col gap-1 rounded-xl border border-border px-5 py-3 text-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-foreground; }
+  .home-work-grid { @apply grid items-start gap-6; }
+  .home-primary { @apply min-w-0 space-y-6; }
+  .home-primary .plan-invitation, .home-primary .today-plan { @apply space-y-5 rounded-3xl bg-primary p-6 text-primary-foreground sm:p-8; }
+  .home-primary .eyebrow, .plan-facts, .invitation-copy, .invitation-assurance { @apply w-fit rounded-md bg-background px-3 py-2 text-foreground; }
+  .home-primary .eyebrow { @apply py-1; }
+  .invitation-copy { @apply max-w-xl; }
+  .invitation-assurance { @apply text-sm; }
+  .plan-detail-link { @apply rounded-md bg-background px-3 py-2 text-foreground; }
+  .home-primary .today-work-surface { @apply text-foreground; }
+  .home-primary .today-plan-subordinate, .home-primary .plan-invitation-subordinate { @apply bg-card text-foreground; }
+  .home-primary .today-plan-subordinate .today-work-surface { @apply rounded-none px-0; }
+  .home-primary .plan-invitation-subordinate .display-title { @apply text-2xl; }
+  .home-primary .plan-invitation-subordinate { @apply space-y-3; }
+  .pick-back-up { @apply rounded-2xl border border-border p-5 sm:p-6; }
+  .home-has-focus .pick-back-up { @apply border-transparent bg-transparent; }
+  .home-start-other { @apply flex flex-wrap items-center justify-between gap-5 border-t border-border pt-6; }
+  .home-primary .focus-summary-content { padding-right: 0; }
+  .home-primary .focus-summary-timer, .home-primary .focus-return { position: static; }
+  .home-primary .focus-summary-timer { @apply pt-3; }
+  .home-primary .focus-hero { @apply p-6 sm:p-8; }
+}
+@media (min-width: 640px) { .home-layout, .home-nav-canvas { padding-inline: 32px; } }
+@media (min-width: 1100px) {
+  .home-layout, .home-nav-canvas { padding-inline: 40px; }
+  .home-work-grid:has(.home-secondary-rail > *) { grid-template-columns: minmax(0, 2.2fr) minmax(320px, 1fr); column-gap: 40px; }
+  .home-primary .focus-summary-content { padding-right: 150px; }
+  .home-primary .focus-summary-timer { position: absolute; top: 32px; right: 32px; padding-top: 0; }
+  .home-primary .focus-return { float: right; }
+  .home-primary .focus-hero { display: flow-root; }
+  .home-primary .focus-hero:has(article ~ article) .focus-summary-content { padding-right: 0; }
+  .home-primary .focus-hero:has(article ~ article) .focus-summary-timer { position: static; }
+}
+
+/* Home-only canvas and compact continuity/context stack. */
+@layer components {
+  main:has(.home-layout), .home-layout { background: var(--color-home-canvas); }
+  .home-secondary-rail { @apply grid min-w-0 gap-4; }
+  .home-secondary-rail:empty { display: none; }
+  .home-secondary-rail .pick-back-up { @apply border-border bg-card shadow-card; }
+  .home-upcoming { @apply min-w-0 space-y-3 rounded-2xl border border-border bg-card p-5 shadow-card sm:p-6; }
+  .home-upcoming .home-interview { @apply max-w-none rounded-lg border-0 bg-background px-4 py-3; }
+  .home-start-other { @apply justify-start gap-x-8 gap-y-4; }
+  .home-start-other h2 { @apply text-base; }
+}
+/* Independent prep-area objects; no enclosing panel or positioned cards. */
+@layer components {
+  .home-start-other { @apply block space-y-5 border-0 border-t border-border pt-7 sm:pt-8; }
+  .home-start-other h2 { font-size: 28px; font-weight: 500; line-height: 1.2; letter-spacing: -0.025em; margin-bottom: 8px; }
+  .prep-area-objects { @apply grid gap-5 pb-3; grid-template-columns: minmax(0, 1fr); }
+  .prep-area-object { @apply flex min-w-0 flex-col gap-3 rounded-2xl border border-border bg-card p-6 text-left text-foreground shadow-card; width: 100%; text-decoration: none; }
+  .prep-area-object-title { @apply text-xl font-semibold leading-tight; overflow-wrap: anywhere; }
+  .prep-area-object-description { @apply text-sm leading-relaxed text-muted-foreground; overflow-wrap: anywhere; white-space: pre-wrap; }
+  .prep-area-object-direction { @apply mt-2 text-xl text-primary; }
+  .prep-area-object:hover:not(:disabled) { border-color: var(--color-primary); }
+  .prep-area-object:focus-visible { outline: 2px solid var(--color-foreground); outline-offset: 4px; }
+  .prep-area-object:disabled { cursor: not-allowed; opacity: 0.65; }
+  .prep-area-object-add { @apply bg-background shadow-none; }
+}
+@media (min-width: 640px) {
+  .prep-area-objects { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 1100px) {
+  .home-start-other h2 { font-size: 34px; }
+  .prep-area-objects { display: flex; flex-wrap: wrap; gap: 24px; }
+  .prep-area-object { width: clamp(240px, 23%, 340px); }
+}
+@media (min-width: 1600px) {
+  .home-layout { padding-inline: 56px; }
+  .home-work-grid:has(.home-secondary-rail > *) { column-gap: 48px; }
+}
+@layer components {
+  .home-primary [role="alert"], .home-primary [role="status"] { @apply rounded-md bg-background px-3 py-2 text-foreground; }
+}
+/* Secondary card interiors only; primary work surfaces stay unchanged. */
+@layer components {
+  .secondary-card-icon { @apply flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-primary; background: color-mix(in srgb, var(--color-primary) 12%, var(--color-card)); }
+  .secondary-card-action { @apply flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-primary text-primary; }
+  button.secondary-card-action:disabled { opacity: .5; cursor: not-allowed; }
+  button.secondary-card-action:focus-visible { outline: 2px solid var(--color-foreground); outline-offset: 4px; }
+  .continuity-heading { @apply mb-4 flex flex-wrap items-center justify-between gap-3; }
+  .continuity-heading h2 { @apply text-xl font-medium tracking-tight; }
+  .continuity-heading a { @apply text-sm text-muted-foreground underline underline-offset-4; }
+  .pick-back-up .resume-row { @apply flex items-start gap-3 space-y-0 rounded-xl border-0 bg-background p-4; }
+  .continuity-copy { @apply min-w-0 flex-1 space-y-1; overflow-wrap: anywhere; }
+  .continuity-copy h3 { @apply text-base font-medium leading-snug; }
+  .continuity-copy p { @apply text-sm text-muted-foreground; }
+  .pick-back-up .resume-row button { position: static; align-self: center; }
+  .home-upcoming .home-interview { @apply flex-row items-center gap-3; }
+  .upcoming-copy { @apply flex min-w-0 flex-1 flex-col gap-1; overflow-wrap: anywhere; }
+  .upcoming-copy > .font-semibold { font-weight: 500; }
+  .prep-area-object { @apply flex-row items-center gap-3 p-5; }
+  .prep-area-object-copy { @apply flex min-w-0 flex-1 flex-col gap-1; }
+  .prep-area-object-title { @apply text-base font-medium leading-snug; }
+  .prep-area-object-description { @apply text-xs leading-relaxed; }
+  .prep-area-object .secondary-card-action { width: 32px; height: 32px; }
+  .home-secondary-rail .pick-back-up,
+  .home-upcoming,
+  .home-start-other .prep-area-object:not(.prep-area-object-add) { background-color: var(--color-surface-raised-warm); }
+}
+
+/* Home-only Deep Teal palette and rhythm. Focus retains its existing theme. */
+.home-layout {
+  --color-primary: #236B65;
+  --color-primary-control: #236B65;
+  --color-primary-hover: #195650;
+  --color-primary-foreground: #FDF8EA;
+  --color-foreground: #202826;
+  --color-card-foreground: #202826;
+  --color-muted-foreground: #65706B;
+  --color-soft-accent: #D8E8E2;
+  --color-accent-edge: #8DBCB0;
+  --color-ring: #236B65;
+  color: var(--color-foreground);
+}
+.home-layout .home-greeting { margin-top: 0; }
+.home-layout .home-greeting-detail { margin-top: 8px; }
+.home-layout .home-primary .plan-invitation,
+.home-layout .home-primary .today-plan {
+  background: var(--color-background);
+  color: var(--color-foreground);
+  border: 1px solid var(--color-border);
+}
+.home-layout .home-primary .eyebrow,
+.home-layout .plan-facts,
+.home-layout .invitation-copy,
+.home-layout .invitation-assurance {
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
+  color: var(--color-muted-foreground);
+}
+.home-layout .home-primary .eyebrow { color: var(--color-primary); }
+.home-layout .today-date { margin-top: 8px; color: var(--color-muted-foreground); font-size: 14px; }
+.home-layout .today-work-surface { background: transparent; padding-inline: 0; border-radius: 0; }
+.home-layout .work-number { background: var(--color-soft-accent); color: var(--color-primary); }
+.home-layout .invitation-copy { max-width: 48ch; }
+.home-layout .build-action {
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  margin-left: auto;
+  min-height: 48px;
+  border: 1px solid var(--color-primary);
+  border-radius: 12px;
+  padding: 12px 20px;
+  font-size: 16px;
+  font-weight: 600;
+}
+.home-layout .build-action-inset { display: none; }
+.home-layout .build-action-label { padding: 0; }
+.home-layout .build-action:hover { background: var(--color-primary-hover); box-shadow: none; }
+.home-layout .invitation-assurance { font-size: 12px; text-align: right; width: auto; }
+.home-layout .pick-back-up,
+.home-layout .home-upcoming,
+.home-layout .prep-area-object { padding: 24px; }
+.home-layout .pick-back-up .resume-row {
+  background: transparent;
+  border-radius: 0;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+.home-layout .pick-back-up .resume-row:last-child { border-bottom: 0; padding-bottom: 0; }
+.home-layout .secondary-card-icon { background: var(--color-soft-accent); }
+.home-layout .secondary-card-action { border-color: var(--color-accent-edge); }
+.home-layout .home-start-other { margin-top: 32px; padding-top: 32px; }
+.home-layout .home-start-other h2 { margin-bottom: 8px; }
+.home-layout .home-start-other .prep-area-objects { margin-top: 24px; }
+.home-layout .focus-summary-content > p:not(.focus-intro):not(.focus-summary-timer),
+.home-layout .focus-hero .eyebrow { background: transparent; padding: 0; color: var(--color-primary-foreground); }
+.home-layout .focus-return { color: var(--color-primary); }

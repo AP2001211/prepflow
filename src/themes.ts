@@ -17,6 +17,7 @@
  */
 
 export const THEMES = [
+  { id: 'prepflow', label: 'PrepFlow', description: 'Warm paper, lavender, and ink.' },
   {
     id: 'slate',
     label: 'Slate',
@@ -33,9 +34,9 @@ export type ThemeId = (typeof THEMES)[number]['id']
 
 /** Read the currently active theme id from <html data-theme>. */
 export function getActiveTheme(): ThemeId {
-  if (typeof document === 'undefined') return 'slate'
+  if (typeof document === 'undefined') return 'prepflow'
   const id = document.documentElement.getAttribute('data-theme') as ThemeId | null
-  return id ?? 'slate'
+  return id ?? 'prepflow'
 }
 
 /** Look up a theme entry by id, or fall back to the first theme. */

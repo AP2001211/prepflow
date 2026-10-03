@@ -11,6 +11,8 @@ export interface Interview {
 }
 export type SessionOutcome = 'completed' | 'stopped' | 'switched'
 export interface Plan {
+  planDate?: string
+  userId?: string
   title: string
   planItemIds: string[]
   startsAt?: string
@@ -98,7 +100,10 @@ export const prepSessionsSchema: CollectionSchema = {
 
 export const plansSchema: CollectionSchema = {
   name: 'plans',
+  uniqueOn: ['userId', 'planDate'],
   columns: [
+    { name: 'planDate', storage: 'text', interpretation: { kind: 'date' }, immutable: true },
+    { name: 'userId', storage: 'text', interpretation: 'plain', userBound: true, immutable: true },
     { name: 'title', storage: 'text', interpretation: 'plain', required: true },
     { name: 'planItemIds', storage: 'text', interpretation: { kind: 'json' }, default: [] },
     { name: 'startsAt', storage: 'text', interpretation: { kind: 'datetime' } },

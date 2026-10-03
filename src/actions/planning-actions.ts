@@ -65,6 +65,7 @@ export const addPlanItem = action(membershipInput, async (ctx, data) => {
   const plan = await owned<Plan>(ctx, 'plans', data.planId)
   const item = await owned<PlanItem>(ctx, 'plan-items', data.planItemId)
   if (!plan || !item) return failure('The selected plan or intended work is unavailable.')
+  if (plan.data.planDate) return failure('Use a dedicated daily-plan action to revise daily membership; this action cannot change it.')
   if (plan.data.closedAt) return failure('Closed plan membership cannot change.')
   if (plan.data.planItemIds.includes(data.planItemId)) return { success: true, data: { recordId: plan.recordId } }
   if (item.data.status !== 'open') return failure('Only open work can be added to a plan.')
@@ -78,6 +79,7 @@ export const createPlanItem = action(itemInput, async (ctx, data) => {
   if (data.planId) {
     const plan = await owned<Plan>(ctx, 'plans', data.planId)
     if (!plan) return failure('The selected plan is unavailable.')
+    if (plan.data.planDate) return failure('This action cannot add work to a daily plan.')
     if (plan.data.closedAt) return failure('Closed plan membership cannot change.')
   }
   const values = { prepAreaId: data.prepAreaId, ...(data.interviewId ? { interviewId: data.interviewId } : {}), intent: data.intent, status: 'open' }

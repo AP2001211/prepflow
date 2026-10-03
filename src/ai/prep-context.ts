@@ -64,7 +64,7 @@ export function prepReader(executor: ToolExecutor) {
       asOf: new Date(now).toISOString(),
       prepAreas: (scopedAreas.length ? scopedAreas : areas.records).map((row) => ({ id: row.recordId, name: row.data.name, notesPreview: row.data.notes?.slice(0, CONTEXT_LIMITS.previewChars) })),
       interviews: [...new Map([...interviews.records.filter((row) => !!row.data.scheduledDate && row.data.scheduledDate >= new Date(now).toISOString().slice(0, 10)), ...(selectedInterview ? [selectedInterview] : [])].map((row) => [row.recordId, row])).values()].map((row) => ({ id: row.recordId, ...row.data, notes: row.data.notes?.slice(0, CONTEXT_LIMITS.previewChars) })),
-      openPlans: plans.records.filter((row) => !row.data.closedAt).map((row) => ({ id: row.recordId, ...row.data, planItemIds: row.data.planItemIds.slice(0, 50), membershipTruncated: row.data.planItemIds.length > 50 })),
+      openPlans: plans.records.filter((row) => !row.data.closedAt).map((row) => ({ id: row.recordId, title: row.data.title, startsAt: row.data.startsAt, endsAt: row.data.endsAt, budgetMinutes: row.data.budgetMinutes, planDate: row.data.planDate, planItemIds: row.data.planItemIds.slice(0, 50), membershipTruncated: row.data.planItemIds.length > 50 })),
       openWork,
       currentFocus: active.records.map((row) => ({ id: row.recordId, planItemId: row.data.planItemId, planId: row.data.planId, intent: row.data.intent.slice(0, 1000), startedAt: row.data.startedAt })),
       recentlyCompleted: completed.records.filter((row) => !!row.data.completedAt && row.data.completedAt >= cutoff).map((row) => ({ id: row.recordId, ...row.data, intent: row.data.intent.slice(0, 1000) })),

@@ -1,11 +1,12 @@
 import { z } from 'zod/v4'
 import { recommendationSchema, validateRecommendation } from '../ai/planner-contract'
 import { action, owned, hasPendingCompletion } from './planning-actions'
+import { dailyContextSchema, validateDailyCreation } from './daily-plan'
 import { owns } from './prep-actions'
 import type { PlanItem } from '../schemas/prep-schema'
 
 export const acceptanceSchema = z.object({
-  requestId: z.uuid(), availableMinutes: z.number().int().positive().max(1440), recommendation: recommendationSchema,
+  requestId: z.uuid(), availableMinutes: z.number().int().positive().max(1440), recommendation: recommendationSchema, daily: dailyContextSchema.optional(),
 }).strict()
 
 /** No model call: materialize exactly the reviewed proposal, as the caller. */
@@ -13,12 +14,12 @@ export const acceptPrepPlan = action(acceptanceSchema, async (ctx, input) => {
   const proposal = validateRecommendation(input.recommendation, input.availableMinutes)
   const planId = `suggested-plan-${ctx.userId}-${input.requestId}`
   const itemIds = proposal.items.map((item, index) => item.kind === 'existing' ? item.existingPlanItemId : `${planId}-item-${index}`)
-  const planValues = { title: proposal.title, budgetMinutes: input.availableMinutes, planItemIds: itemIds }
+  const planValues = { ...(input.daily ? { planDate: input.daily.planDate } : {}), title: proposal.title, budgetMinutes: input.availableMinutes, planItemIds: itemIds }
   const previous = await ctx.tools.query('plans', { where: { recordId: planId }, limit: 1 })
   if (!previous.success) return { success: false, error: 'Could not check this submission. Try again.' }
   if (previous.data.records.length) {
     const plan = previous.data.records[0]!
-    if (plan.createdBy !== ctx.userId || plan.data.title !== planValues.title || plan.data.budgetMinutes !== planValues.budgetMinutes || JSON.stringify(plan.data.planItemIds) !== JSON.stringify(itemIds)) {
+    if ((plan.data.planDate ?? null) !== (input.daily?.planDate ?? null) || plan.createdBy !== ctx.userId || plan.data.title !== planValues.title || plan.data.budgetMinutes !== planValues.budgetMinutes || JSON.stringify(plan.data.planItemIds) !== JSON.stringify(itemIds)) {
       return { success: false, error: 'This submission already belongs to a different plan.' }
     }
     for (const [index, entry] of proposal.items.entries()) {
@@ -29,6 +30,10 @@ export const acceptPrepPlan = action(acceptanceSchema, async (ctx, input) => {
       }
     }
     return { success: true, data: { recordId: planId } }
+  }
+  if (input.daily) {
+    const conflict = await validateDailyCreation(ctx, input.daily)
+    if (conflict) return conflict
   }
   // Validate every reference before the first write. Privileged action tools
   // require explicit ownership checks even though record RBAC remains enabled.

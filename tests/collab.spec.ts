@@ -35,8 +35,8 @@ test('PrepFlow general preparation, optional interviews, and two-user privacy', 
   const [alice, bob] = await users(2)
   const prefix = `__test-${Date.now()}__`
   await Promise.all([alice.page.goto('/home'), bob.page.goto('/home')])
-  await expect(alice.page.getByRole('heading', { name: 'Current Focus' })).toBeVisible()
-  await expect(bob.page.getByRole('heading', { name: 'Current Focus' })).toBeVisible()
+  await expect(alice.page.getByText('Make room for focus.', { exact: true })).toBeVisible()
+  await expect(bob.page.getByText('Make room for focus.', { exact: true })).toBeVisible()
   await Promise.all([alice.page.goto('/prep'), bob.page.goto('/prep')])
   const areaName = `${prefix} SQL`
   await alice.page.getByLabel('Area name', { exact: true }).fill(areaName)
@@ -45,9 +45,9 @@ test('PrepFlow general preparation, optional interviews, and two-user privacy', 
   await expect(bob.page.getByRole('heading', { name: areaName, exact: true })).toHaveCount(0)
 
   await Promise.all([alice.page.goto('/home'), bob.page.goto('/home')])
-  await expect.poll(async () => await alice.page.getByRole('button', { name: 'Start unplanned work', exact: true }).isEnabled() || await alice.page.locator('article').count() > 0).toBe(true)
+  await expect.poll(async () => await alice.page.locator('button.prep-area-object').first().isEnabled() || await alice.page.locator('article').count() > 0).toBe(true)
   test.skip(await alice.page.locator('article').count() > 0, 'Preserve the fixture user’s existing active focus.')
-  await alice.page.getByRole('button', { name: 'Start unplanned work', exact: true }).click()
+  await alice.page.locator('button.prep-area-object').first().click()
   // Never end a developer's pre-existing focus session for test setup.
   const startButton = alice.page.getByRole('button', { name: 'Start focus session', exact: true })
   test.skip(await startButton.count() === 0, 'The fixture user already has active preparation; preserve it and use a clean fixture account.')
@@ -57,6 +57,7 @@ test('PrepFlow general preparation, optional interviews, and two-user privacy', 
   const intent = `${prefix} Practice window functions`
   await alice.page.getByLabel('What do you intend to work on?').fill(intent)
   await startButton.click()
+  await alice.page.getByRole('link', { name: 'Return to focus →', exact: true }).click()
   const focus = alice.page.locator('article').filter({ has: alice.page.getByRole('heading', { name: intent, exact: true }) })
   await expect(focus).toBeVisible()
   await expect(focus.getByText('General preparation', { exact: false })).toBeVisible()
@@ -83,19 +84,20 @@ test('PrepFlow general preparation, optional interviews, and two-user privacy', 
   await expect(bob.page.getByRole('heading', { name: company, exact: true })).toHaveCount(0)
 
   await alice.page.goto('/home')
-  await alice.page.getByRole('button', { name: 'Start unplanned work', exact: true }).click()
+  await alice.page.locator('button.prep-area-object').first().click()
   const interviewId = await alice.page.getByRole('combobox', { name: 'Interview (optional)', exact: true }).locator('option').filter({ hasText: company }).getAttribute('value')
   expect(interviewId).toBeTruthy()
   for (const [button, outcome] of [['Stop', 'stopped'], ['End to switch', 'switched']] as const) {
     if (outcome === 'switched') {
       await alice.page.goto('/home')
-      await alice.page.getByRole('button', { name: 'Start unplanned work', exact: true }).click()
+      await alice.page.locator('button.prep-area-object').first().click()
     }
     const nextIntent = `${prefix} ${outcome} attempt`
     await alice.page.getByRole('combobox', { name: 'Prep Area', exact: true }).selectOption(areaId!)
     await alice.page.getByRole('combobox', { name: 'Interview (optional)', exact: true }).selectOption(interviewId!)
     await alice.page.getByLabel('What do you intend to work on?').fill(nextIntent)
     await alice.page.getByRole('button', { name: 'Start focus session', exact: true }).click()
+    await alice.page.getByRole('link', { name: 'Return to focus →', exact: true }).click()
     const attempt = alice.page.locator('article').filter({ has: alice.page.getByRole('heading', { name: nextIntent, exact: true }) })
     await expect(attempt).toBeVisible()
     await expect(attempt.getByText(company, { exact: false })).toBeVisible()
@@ -237,7 +239,7 @@ test('reusable planned work, optional checkpoints, new resume intervals, and his
   const [alice, bob] = await users(2)
   const prefix = `__test-phase2-${Date.now()}__`
   await Promise.all([alice.page.goto('/home'), bob.page.goto('/home')])
-  await expect(alice.page.getByRole('heading', { name: 'Current Focus', exact: true })).toBeVisible()
+  await expect(alice.page.getByText('Make room for focus.', { exact: true })).toBeVisible()
   const focusSection = alice.page.locator('section').filter({ has: alice.page.getByRole('heading', { name: 'Current Focus', exact: true }) })
   test.skip(await focusSection.locator('article').count() > 0, 'Preserve the fixture user’s existing active focus.')
   const tokenFor = async (person: typeof alice) => {
@@ -260,7 +262,7 @@ test('reusable planned work, optional checkpoints, new resume intervals, and his
   await alice.page.getByRole('button', { name: 'Create Prep Area', exact: true }).click()
   await expect(alice.page.getByRole('heading', { name: `${prefix} SQL`, exact: true })).toBeVisible()
   await alice.page.goto('/home')
-  await alice.page.getByRole('button', { name: 'Start unplanned work', exact: true }).click()
+  await alice.page.locator('button.prep-area-object').first().click()
   const areaId = await alice.page.getByRole('combobox', { name: 'Prep Area', exact: true }).locator('option').filter({ hasText: `${prefix} SQL` }).getAttribute('value')
   await alice.page.getByRole('button', { name: 'Close', exact: true }).click()
   await alice.page.goto('/plans')
@@ -286,17 +288,13 @@ test('reusable planned work, optional checkpoints, new resume intervals, and his
   const itemId = createdItem.data.recordId
   const neverStarted = await success('createPlanItem', { prepAreaId: areaId, intent: `${prefix} Never started`, planId: firstPlan })
   await alice.page.goto('/home')
-  const relevant = alice.page.locator('section').filter({ has: alice.page.getByRole('heading', { name: 'Relevant Plan', exact: true }) })
-  await expect(relevant.getByRole('combobox')).toHaveCount(0)
-  await expect(relevant.getByText('Automatic: focus plan, current bounds, upcoming, most recent', { exact: true })).toHaveCount(0)
-  await relevant.getByRole('button', { name: 'Change', exact: true }).click()
-  await relevant.getByRole('combobox', { name: 'Choose a plan', exact: true }).selectOption(laterPlan)
-  await expect(relevant.getByRole('combobox')).toHaveCount(0)
-  await expect(relevant.getByRole('heading', { name: `${prefix} Later`, exact: true })).toBeVisible()
-  const continueSection = alice.page.locator('section').filter({ has: alice.page.getByRole('heading', { name: 'Continue Where You Left Off', exact: true }) })
+  await expect(alice.page.getByRole('heading', { name: 'Relevant Plan', exact: true })).toHaveCount(0)
+  await expect(alice.page.getByRole('region', { name: "Today's Plan", exact: true }).getByRole('heading', { name: `${prefix} Original`, exact: true })).toHaveCount(0)
+  const continueSection = alice.page.locator('section').filter({ has: alice.page.getByRole('heading', { name: 'Pick Back Up', exact: true }) })
   await expect(continueSection.getByRole('heading', { name: intent, exact: true })).toHaveCount(0)
   await expect(continueSection.getByRole('heading', { name: `${prefix} Never started`, exact: true })).toHaveCount(0)
   const firstSession = await success('startPrepSession', { planItemId: itemId, planId: firstPlan })
+  await alice.page.getByRole('link', { name: 'Return to focus →', exact: true }).click()
   const attempt = focusSection.locator('article')
   await expect(attempt.getByRole('heading', { name: intent, exact: true })).toBeVisible()
   expect(await action('startPrepSession', { planItemId: neverStarted })).toMatchObject({ success: false })
@@ -324,11 +322,12 @@ test('reusable planned work, optional checkpoints, new resume intervals, and his
   expect(contextResponse.request().postDataJSON()).toEqual({ sessionId: firstSession, leftOff: 'TEST CONTEXT 123', nextStep: 'TEST NEXT STEP 456' })
   // Context is a separate confirmed write; it never changes the stop time.
   await expect(contextSection).toHaveCount(0)
+  await alice.page.getByRole('link', { name: '← Home', exact: true }).click()
   const resumeRow = continueSection.locator('li').filter({ has: alice.page.getByRole('heading', { name: intent, exact: true }) })
   await expect(resumeRow.getByText('Left off: TEST CONTEXT 123', { exact: true })).toBeVisible()
   await success('closePlan', { planId: firstPlan })
   await success('addPlanItem', { planId: laterPlan, planItemId: itemId })
-  await alice.page.getByRole('link', { name: 'View all unfinished work →', exact: true }).click()
+  await alice.page.getByRole('link', { name: 'View all unfinished work', exact: true }).click()
   await expect(alice.page).toHaveURL(/\/plans#unfinished-work$/)
   const unfinished = alice.page.locator('#unfinished-work')
   await expect(unfinished.getByRole('heading', { name: 'Unfinished Work', exact: true })).toBeInViewport()
@@ -364,6 +363,7 @@ test('reusable planned work, optional checkpoints, new resume intervals, and his
   expect(resumeResponse.request().postDataJSON()).toMatchObject({ planItemId: itemId })
   const secondSession = resumed.data.recordId
   expect(secondSession).not.toBe(firstSession)
+  await expect(alice.page).toHaveURL(/\/focus$/)
   await expect(attempt).toBeVisible()
   await expect(resumeRow).toHaveCount(0)
   const priorContext = attempt.getByRole('complementary', { name: 'Context from your previous attempt', exact: true })
@@ -373,9 +373,11 @@ test('reusable planned work, optional checkpoints, new resume intervals, and his
   await expect(priorContext.getByText('Left off: TEST CONTEXT 123', { exact: true })).toBeVisible()
   await attempt.getByLabel('Session notes — progress, difficulty, or where you stopped').fill('Draft survives navigation')
   const nav = alice.page.getByTestId('app-navigation')
+  await alice.page.getByRole('link', { name: '← Home', exact: true }).click()
   await nav.getByRole('link', { name: 'Plans', exact: true }).click()
   await nav.getByRole('link', { name: 'History', exact: true }).click()
   await nav.getByRole('link', { name: 'Home', exact: true }).click()
+  await alice.page.getByRole('link', { name: 'Return to focus →', exact: true }).click()
   await expect(attempt.getByLabel('Session notes — progress, difficulty, or where you stopped')).toHaveValue('Draft survives navigation')
   const stopRequests: { endedAt: string }[] = []
   await alice.page.route('**/api/actions/endPrepSession', async (route) => {
@@ -386,8 +388,10 @@ test('reusable planned work, optional checkpoints, new resume intervals, and his
   await attempt.getByRole('button', { name: 'Stop', exact: true }).click()
   await expect(alice.page.getByText('Temporary stop failure', { exact: true })).toBeVisible()
   const frozenDuration = await attempt.getByLabel('Focus duration', { exact: true }).textContent()
+  await alice.page.getByRole('link', { name: '← Home', exact: true }).click()
   await nav.getByRole('link', { name: 'Plans', exact: true }).click()
   await nav.getByRole('link', { name: 'Home', exact: true }).click()
+  await alice.page.getByRole('link', { name: 'Return to focus →', exact: true }).click()
   await expect(attempt.getByLabel('Focus duration', { exact: true })).toHaveText(frozenDuration!)
   await attempt.getByRole('button', { name: 'Retry ending focus', exact: true }).click()
   await expect.poll(() => stopRequests.length).toBe(2)
@@ -404,10 +408,12 @@ test('reusable planned work, optional checkpoints, new resume intervals, and his
   await expect(contextSection.getByLabel('Where did you leave off / what was blocking you? (optional)')).toHaveValue('Transient context draft')
   await contextSection.getByRole('button', { name: 'Skip', exact: true }).click()
   // A newer interval without context must not display the older checkpoint.
+  await alice.page.getByRole('link', { name: '← Home', exact: true }).click()
   await expect(resumeRow).toBeVisible()
   await expect(resumeRow.getByText('Left off: TEST CONTEXT 123', { exact: true })).toHaveCount(0)
   await expect(resumeRow.getByText('Next: TEST NEXT STEP 456', { exact: true })).toHaveCount(0)
   await resumeRow.getByRole('button', { name: 'Resume', exact: true }).click()
+  await expect(alice.page).toHaveURL(/\/focus$/)
   await expect(attempt).toBeVisible()
   await expect(priorContext).toHaveCount(0)
   await alice.page.reload()
@@ -433,8 +439,10 @@ test('reusable planned work, optional checkpoints, new resume intervals, and his
   // Live sync can expose reconciliation before the intercepted HTTP
   // response finishes. Wait for its handler before removing the route.
   await alice.page.unrouteAll({ behavior: 'wait' })
+  await alice.page.getByRole('link', { name: '← Home', exact: true }).click()
   await nav.getByRole('link', { name: 'Plans', exact: true }).click()
   await nav.getByRole('link', { name: 'Home', exact: true }).click()
+  await alice.page.getByRole('link', { name: 'Return to focus →', exact: true }).click()
   await alice.page.getByRole('button', { name: 'Retry completion', exact: true }).click()
   await expect(alice.page.getByText('Item completion confirmed.', { exact: true })).toBeVisible()
   await expect(alice.page.getByRole('button', { name: 'Retry completion', exact: true })).toHaveCount(0)

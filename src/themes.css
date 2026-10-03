@@ -44,3 +44,35 @@
   --color-shell: #fafafa;
   --color-shell-panel: #ffffff;
 }
+
+/* PrepFlow foundation. Edit this block to tune the product palette. */
+[data-theme="prepflow"] {
+  color-scheme: light;
+  --color-background: #FDF8EA;
+  --color-foreground: #282a36;
+  --color-card: #FFFFFF;
+  --color-card-foreground: #282a36;
+  --color-popover: #FFFFFF;
+  --color-popover-foreground: #282a36;
+  --color-primary: #6C75AA;
+  --color-primary-control: #606999;
+  --color-primary-foreground: #FDF8EA;
+  --color-secondary: #F0E1D2;
+  --color-secondary-foreground: #35354c;
+  --color-muted: #efede5;
+  --color-muted-foreground: #62626e;
+  --color-accent: #F0E1D2;
+  --color-accent-foreground: #282a36;
+  --color-destructive: #a8333e;
+  --color-destructive-foreground: #ffffff;
+  --color-border: #dedbd3;
+  --color-input: #c9c6c0;
+  --color-ring: #6C75AA;
+  --color-home-canvas: #FAF2DF;
+  --color-surface-raised-warm: #FCF8EF;
+  --color-shell: #FDF8EA;
+  --color-shell-panel: #FFFFFF;
+  --radius: 1rem;
+  --shadow-card: 0 5px 24px rgba(40, 42, 54, 0.035);
+  --shadow-card-hover: 0 8px 28px rgba(40, 42, 54, 0.06);
+}

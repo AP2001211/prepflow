@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { ActionContext, ActionTools } from 'deepspace/worker'
 import type { Env } from '../../worker'
+import { localPlanDate } from '../lib/plan-date'
 import { acceptPrepPlan } from './planner-acceptance'
 import { planningActions } from './planning-actions'
 
@@ -316,5 +317,62 @@ describe('Reviewed planner acceptance (no model calls)', () => {
     expect((await f.call('acceptPrepPlan', input())).success).toBe(false)
     expect((await f.call('acceptPrepPlan', input())).success).toBe(true)
     expect(f.create.mock.calls.filter(([collection]) => collection === 'plan-items')).toHaveLength(1)
+  })
+})
+
+describe('daily plan lifecycle', () => {
+  const daily = () => ({ planDate: localPlanDate('America/New_York'), timeZone: 'America/New_York' })
+  const input = (requestId = '00000000-0000-4000-8000-000000000070') => ({ requestId, availableMinutes: 30, daily: daily(), recommendation: { title: 'Today', rationale: 'Focus', items: [{ kind: 'existing', existingPlanItemId: 'item', estimatedMinutes: 30, reason: 'Continue' }] } })
+  it('persists the explicit date, keeps original membership and rejects a second submission before writes', async () => {
+    const f = fixture(); expect((await f.call('acceptPrepPlan', input())).success).toBe(true)
+    const plan = f.row('plans', 'suggested-plan-alice-00000000-0000-4000-8000-000000000070')
+    expect(plan?.data).toEqual({ planDate: daily().planDate, title: 'Today', budgetMinutes: 30, planItemIds: ['item'] })
+    expect(f.row('plans', 'plan')?.data.planItemIds).toEqual(['item'])
+    expect((await f.call('acceptPrepPlan', input())).success).toBe(true)
+    const before = f.create.mock.calls.length
+    expect((await f.call('acceptPrepPlan', input('00000000-0000-4000-8000-000000000071'))).success).toBe(false)
+    expect(f.create).toHaveBeenCalledTimes(before)
+    expect(f.row('plan-items', 'item')?.data.status).toBe('open')
+  })
+  it('allows another user the same date with their own work', async () => {
+    const f = fixture(); await f.call('acceptPrepPlan', input())
+    f.put('users', 'bob', { role: 'member' }, 'bob'); f.put('prep-areas', 'bob-area', { name: 'SQL' }, 'bob'); f.put('plan-items', 'bob-item', { intent: 'SQL', prepAreaId: 'bob-area', status: 'open' }, 'bob')
+    const data = input(); data.recommendation.items[0]!.existingPlanItemId = 'bob-item'
+    expect((await f.call('acceptPrepPlan', data, 'bob')).success).toBe(true)
+  })
+  it('rejects invalid dates, zones, stale daily context and changed retry date before writes', async () => {
+    const f = fixture()
+    for (const value of [{ planDate: '2026-02-30', timeZone: 'UTC' }, { planDate: daily().planDate, timeZone: 'Not/AZone' }, { planDate: '2000-01-01', timeZone: 'UTC' }]) expect((await f.call('acceptPrepPlan', { ...input(), daily: value })).success).toBe(false)
+    expect(f.create).not.toHaveBeenCalled()
+    await f.call('acceptPrepPlan', input())
+    expect((await f.call('acceptPrepPlan', { ...input(), daily: { planDate: '2000-01-01', timeZone: 'UTC' } })).success).toBe(false)
+  })
+  it('protects daily membership through both generic add paths before creating work, without closing it', async () => {
+    const f = fixture(); f.put('plans', 'daily', { title: 'Past day', planDate: '2000-01-01', planItemIds: ['item'] })
+    expect((await f.call('addPlanItem', { planId: 'daily', planItemId: 'item' })).success).toBe(false)
+    expect((await f.call('createPlanItem', { planId: 'daily', prepAreaId: 'area', intent: 'Unplanned addition' })).success).toBe(false)
+    expect(f.create).not.toHaveBeenCalled()
+    expect(f.row('plans', 'daily')?.data.closedAt).toBeUndefined()
+    const session = await f.start()
+    await f.stop(session, 'switched')
+    expect(f.row('plan-items', 'item')?.data.status).toBe('open')
+    expect(f.row('plans', 'daily')?.data.planItemIds).toEqual(['item'])
+    await f.start() // Historical daily membership never blocks unplanned resume.
+  })
+})
+
+describe('daily retries across midnight', () => {
+  it('reads back an accepted submission after the date changes, without retimestamping or duplicating', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date('2026-10-02T12:00:00Z'))
+      const f = fixture()
+      const input = { requestId: '00000000-0000-4000-8000-000000000080', availableMinutes: 30, daily: { planDate: '2026-10-02', timeZone: 'UTC' }, recommendation: { title: 'Today', rationale: 'Focus', items: [{ kind: 'existing', existingPlanItemId: 'item', estimatedMinutes: 30, reason: 'Continue' }] } }
+      expect((await f.call('acceptPrepPlan', input)).success).toBe(true)
+      vi.setSystemTime(new Date('2026-10-03T12:00:00Z'))
+      expect((await f.call('acceptPrepPlan', input)).success).toBe(true)
+      expect(f.create).toHaveBeenCalledTimes(1)
+      expect(f.row('plans', 'suggested-plan-alice-00000000-0000-4000-8000-000000000080')?.data.planDate).toBe('2026-10-02')
+    } finally { vi.useRealTimers() }
   })
 })

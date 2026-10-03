@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react'
 import type { RecordData } from 'deepspace'
 import type { PrepSession, SessionOutcome } from '../schemas/prep-schema'
 import { formatFocus } from '../lib/focus'
-import { Button, Textarea } from './ui'
-import { dateTime, Field } from './prep-ui'
+import { FileText } from 'lucide-react'
+import { FocusNotebook } from './FocusNotebook'
+import { Button } from './ui'
+import { dateTime } from './prep-ui'
 
 export function FocusAttempt({ record, area, interview, disabled, predecessor, notes, stop, onNotes, onStuck, onEnd }: {
   record: RecordData<PrepSession>
@@ -26,34 +28,33 @@ export function FocusAttempt({ record, area, interview, disabled, predecessor, n
 
   const elapsed = Math.max(0, (stop ? Date.parse(stop.endedAt) : now) - Date.parse(record.data.startedAt))
   return (
-    <article className="mb-4 space-y-3 rounded-md border border-border p-4">
-      <h3 className="font-semibold break-words">{record.data.intent}</h3>
-      <p className="text-sm">{area} · {interview}</p>
-      <p className="text-sm text-muted-foreground">Started {dateTime(record.data.startedAt)}</p>
-      <p className="font-mono text-lg" aria-label="Focus duration">{formatFocus(elapsed)}</p>
-      {(predecessor?.data.leftOff || predecessor?.data.nextStep) && <aside className="space-y-2 rounded border border-border p-3" aria-label="Context from your previous attempt">
-        <h4 className="font-medium">Context from your previous attempt</h4>
-        {predecessor.data.leftOff && <p className="whitespace-pre-wrap break-words text-sm">Left off: {predecessor.data.leftOff}</p>}
-        {predecessor.data.nextStep && <p className="whitespace-pre-wrap break-words text-sm">Next: {predecessor.data.nextStep}</p>}
-      </aside>}
+    <article className="focus-attempt">
+      <div className="focus-scene">
+        <div className="focus-identity"><h3 className="focus-task-title">{record.data.intent}</h3><p className="focus-task-context">{area} · {interview}</p><p className="focus-started">Started {dateTime(record.data.startedAt)}</p></div>
+        <div className="focus-time"><p className="focus-elapsed" aria-label="Focus duration">{formatFocus(elapsed)}</p><p className="focus-time-label">Time in focus</p></div>
+        <aside className="focus-session-context" aria-label={predecessor?.data.leftOff || predecessor?.data.nextStep ? 'Context from your previous attempt' : 'Session Context'}>
+          <div className="focus-context-heading"><h4>Session Context</h4><FileText size={20} aria-hidden="true" /></div>
+          {predecessor?.data.leftOff && <div><h5>Last time</h5><p className="context-left-off">Left off: {predecessor.data.leftOff}</p></div>}
+          {predecessor?.data.nextStep && <div><h5>Next step</h5><p>Next: {predecessor.data.nextStep}</p></div>}
+          {!(predecessor?.data.leftOff || predecessor?.data.nextStep) && <p className="focus-context-empty">No saved context from your previous attempt.</p>}
+        </aside>
+      </div>
       {record.data.encounteredStuck ? <p className="text-sm">Difficulty reported during this attempt. You can keep working.</p> : null}
-      <Field label="Session notes — progress, difficulty, or where you stopped">
-        <Textarea value={notes} onChange={(event) => onNotes(event.target.value)} maxLength={10000} disabled={disabled || !!stop} />
-      </Field>
+      <FocusNotebook intent={record.data.intent} notes={notes} onNotes={onNotes} disabled={disabled || !!stop} />
       {stop ? (
         <div className="space-y-2">
           <p role="status">Timer stopped. Waiting for the end to be confirmed. Retry if saving failed; the stop time will stay fixed.</p>
           <Button disabled={disabled} onClick={() => void onEnd(stop.outcome)}>Retry ending focus</Button>
         </div>
       ) : (
-        <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" disabled={disabled || !!record.data.encounteredStuck} onClick={() => void onStuck(notes)}>Report difficulty (keep working)</Button>
+        <div className="focus-actions">
+          <Button variant="outline" disabled={disabled || !!record.data.encounteredStuck} onClick={() => void onStuck(notes)}>Report difficulty (keep working)</Button>
           <Button disabled={disabled} onClick={() => void onEnd('completed')}>Complete</Button>
-          <Button variant="secondary" disabled={disabled} onClick={() => void onEnd('stopped')}>Stop</Button>
-          <Button variant="secondary" disabled={disabled} onClick={() => void onEnd('switched')}>End to switch</Button>
+          <Button variant="outline" disabled={disabled} onClick={() => void onEnd('stopped')}>Stop</Button>
+          <Button variant="ghost" className="focus-switch" disabled={disabled} onClick={() => void onEnd('switched')}>End to switch</Button>
         </div>
       )}
-      <p className="text-xs text-muted-foreground">Notes save when you report difficulty or end focus. Switch/Stop leaves the work open; resume context is optional and can be added afterward.</p>
+      <p className="focus-helper">Notes save when you report difficulty or end focus. Switch/Stop leaves the work open; resume context is optional and can be added afterward.</p>
     </article>
   )
 }
