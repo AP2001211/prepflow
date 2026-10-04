@@ -58,7 +58,7 @@ export default function Navigation() {
         to={item.path}
         aria-current={active ? 'page' : undefined}
         className={cn(
-          'rounded-lg px-4 py-2 text-sm transition-colors',
+          'app-nav-tab rounded-lg px-4 py-2 text-sm transition-colors',
           active ? 'bg-secondary font-semibold text-foreground' : 'text-muted-foreground hover:text-foreground',
         )}
       >

@@ -2,9 +2,8 @@ import { BookOpen, Plus, ArrowRight } from 'lucide-react'
 import { HomeHeading, HomeUpcoming } from './HomeHeading'
 import { Link } from 'react-router-dom'
 import { useState } from 'react'
-import { FocusSummary } from './FocusSummary'
+import { HomePrimary } from './HomePrimary'
 import { ContinueWork } from './ContinueWork'
-import { TodayPlan } from './TodayPlan'
 import { WorkItemForm } from './WorkItemForm'
 import { Modal } from './ui'
 import { useFocus } from './FocusController'
@@ -21,7 +20,7 @@ export function PrepWorkspace() {
   return <div className="home-layout">
     <HomeHeading planDate={day.planDate} />
     <div className={`home-work-grid${focus.active.length ? ' home-has-focus' : ''}`}>
-      <div className="home-primary"><FocusSummary /><TodayPlan planDate={day.planDate} /></div>
+      <HomePrimary planDate={day.planDate} />
       <div className="home-secondary-rail"><ContinueWork /><HomeUpcoming planDate={day.planDate} /></div>
     </div>
     <section className="home-start-other" aria-label="Start something else">

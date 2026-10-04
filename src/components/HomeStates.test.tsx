@@ -7,12 +7,12 @@ import { MemoryRouter } from 'react-router-dom'
 import { TodayPlan } from './TodayPlan'
 import { FocusSummary } from './FocusSummary'
 import { ContinueWork } from './ContinueWork'
-const state = vi.hoisted(() => ({ plans: [] as unknown[], items: [] as unknown[], sessions: [] as unknown[], active: [] as unknown[], interviews: [] as unknown[] }))
+const state = vi.hoisted(() => ({ plans: [] as unknown[], items: [] as unknown[], sessions: [] as unknown[], active: [] as unknown[], interviews: [] as unknown[], completion: null as { sessionId: string; title: string; startedAt: string; endedAt: string } | null }))
 vi.mock('deepspace', () => ({ useQuery: (collection: string) => ({ records: collection === 'plans' ? state.plans : collection === 'interviews' ? state.interviews : collection === 'prep-areas' ? [{ recordId: 'area', data: { name: 'DSA', notes: 'Graphs, arrays, and dynamic programming' } }, { recordId: 'design', data: { name: 'System Design', notes: 'Architecture and scaling' } }, { recordId: 'behavioral', data: { name: 'Behavioral', notes: 'Practice interview stories' } }] : [], status: 'ready' }) }))
 vi.mock('../lib/use-local-day', () => ({ useLocalDay: () => ({ planDate: '2026-10-02', timeZone: 'America/New_York' }) }))
-vi.mock('./FocusController', () => ({ useFocus: () => ({ active: state.active, sessions: { records: state.sessions }, items: { records: state.items }, loaded: true, pending: [], pendingIds: new Set(), canStart: true, draft: () => ({}) }) }))
+vi.mock('./FocusController', () => ({ useFocus: () => ({ active: state.active, completion: state.completion, sessions: { records: state.sessions }, items: { records: state.items }, loaded: true, pending: [], pendingIds: new Set(), canStart: true, draft: () => ({}) }) }))
 const render = (node: React.ReactNode) => renderToStaticMarkup(<MemoryRouter>{node}</MemoryRouter>)
-beforeEach(() => { state.plans = []; state.items = []; state.sessions = []; state.active = []; state.interviews = [] })
+beforeEach(() => { state.plans = []; state.items = []; state.sessions = []; state.active = []; state.interviews = []; state.completion = null })
 describe('Home state hierarchy', () => {
   it('omits the empty focus strip after loading', () => {
     expect(render(<FocusSummary />)).toBe('')
@@ -89,6 +89,8 @@ describe('Home composition fixtures', () => {
     state.items = [work('a', 'An intentionally long task title to check wrapping: ' + 'DynamicProgramming'.repeat(12))]
     state.plans = [{ recordId: 'today', data: { title: 'A plan with long intended work', planDate: '2026-10-02', planItemIds: ['a'] } }]
     save('long-tied')
+    state.completion = { sessionId: 'accepted', title: 'Completed work with a long title: ' + 'DynamicProgramming'.repeat(10), startedAt: '2026-10-02T12:00:00Z', endedAt: '2026-10-02T12:11:24Z' }
+    save('recent-completion')
     expect(render(<PrepWorkspace />)).toContain('home-work-grid')
   })
 })

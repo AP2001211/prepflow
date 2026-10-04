@@ -97,6 +97,7 @@ test('planner review, retry, canonical display, acceptance and focus (determinis
   const planId = new URL(alice.page.url()).pathname.split('/').pop()!
   const row = alice.page.locator('li').filter({ has: alice.page.getByRole('heading', { name: `${prefix} Resume joins`, exact: true }) })
   await row.getByRole('button', { name: 'Resume', exact: true }).click()
+  await expect(alice.page).toHaveURL(/\/focus$/)
   await alice.page.goto('/home')
   await alice.page.getByRole('link', { name: 'Return to focus →', exact: true }).click()
   await expect(alice.page.getByText('Left off: Handle null keys', { exact: true })).toBeVisible()

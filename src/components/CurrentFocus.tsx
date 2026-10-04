@@ -21,11 +21,11 @@ export function CurrentFocus() {
         area={areas.records.find((row) => row.recordId === record.data.prepAreaId)?.data.name ?? 'Prep Area'}
         interview={record.data.interviewId ? interviews.records.find((row) => row.recordId === record.data.interviewId)?.data.company ?? 'Interview' : 'General preparation'}
         disabled={!focus.ready} onNotes={(notes) => focus.setNotes(record.recordId, notes)}
-        onStuck={(notes) => focus.save(async () => { await runPrepAction('reportStuck', { sessionId: record.recordId, notes }) }, 'Difficulty recorded. Your session is still active.')}
+        onStuck={(notes) => focus.stuck(record.recordId, notes)}
         onEnd={(outcome) => focus.end(record.recordId, outcome)} />
     })}
     {focus.awaitingFocus && <p role="status">Your session was accepted. Waiting for the live workspace to update…</p>}
     {focus.loaded && !focus.active.length && !focus.awaitingFocus && <p>No current focus. Resume unfinished work or start an attempt below.</p>}
-    {focus.pending.map((row) => <div key={row.recordId} className="mt-4 space-y-2"><p role="alert">Focus on “{row.data.intent}” has ended. Item completion still needs confirmation; this work cannot be resumed yet.</p><Button disabled={!focus.ready} onClick={() => void focus.save(async () => { await runPrepAction('reconcileCompletion', { sessionId: row.recordId }); if (focus.completionRetryId === row.recordId) focus.setCompletionRetryId(null) }, 'Item completion confirmed.')}>Retry completion</Button></div>)}
+    {focus.pending.map((row) => <div key={row.recordId} className="mt-4 space-y-2"><p role="alert">Focus on “{row.data.intent}” has ended. Item completion still needs confirmation; this work cannot be resumed yet.</p><Button disabled={!focus.ready} onClick={() => void focus.save(async () => { await runPrepAction('reconcileCompletion', { sessionId: row.recordId }); if (focus.completionRetryId === row.recordId) focus.setCompletionRetryId(null); if (row.data.endedAt) focus.acknowledgeCompletion({ sessionId: row.recordId, title: row.data.intent, startedAt: row.data.startedAt, endedAt: row.data.endedAt }) })}>Retry completion</Button></div>)}
   </section>
 }

@@ -97,7 +97,7 @@
 /* Immersive Focus only: the landscape asset never enters the Home shell. */
 main:has(.focus-workspace) {
   background-color: var(--color-home-canvas);
-  background-image: linear-gradient(to bottom, rgba(253,248,234,.35), rgba(253,248,234,.18) 360px, rgba(250,242,223,.1) 520px, var(--color-home-canvas) 920px), url('/images/focus-landscape.png');
+  background-image: linear-gradient(to bottom, rgba(253,248,234,.8), rgba(253,248,234,.65) 360px, rgba(253,248,234,.35) 520px, var(--color-home-canvas) 920px), url('/images/focus-forest.jpg');
   background-size: auto 950px;
   background-position: center top;
   background-repeat: no-repeat;
@@ -454,7 +454,7 @@ main:has(.focus-workspace) {
   .home-work-grid:has(.home-secondary-rail > *) { column-gap: 48px; }
 }
 @layer components {
-  .home-primary [role="alert"], .home-primary [role="status"] { @apply rounded-md bg-background px-3 py-2 text-foreground; }
+  .home-primary [role="alert"], .home-primary [role="status"]:not(.home-completion) { @apply rounded-md bg-background px-3 py-2 text-foreground; }
 }
 /* Secondary card interiors only; primary work surfaces stay unchanged. */
 @layer components {
@@ -553,3 +553,171 @@ main:has(.focus-workspace) {
 .home-layout .focus-summary-content > p:not(.focus-intro):not(.focus-summary-timer),
 .home-layout .focus-hero .eyebrow { background: transparent; padding: 0; color: var(--color-primary-foreground); }
 .home-layout .focus-return { color: var(--color-primary); }
+
+/* Supplied editorial planner artwork: empty Today only, never control icons. */
+.home-layout .today-invitation-composition { display: grid; align-items: center; gap: 24px; }
+.home-layout .today-invitation-copy { min-width: 0; }
+.home-layout .today-invitation-copy .invitation-copy { margin-top: 24px; }
+.home-layout .today-planner-illustration {
+  display: block;
+  width: min(100%, 240px);
+  height: auto;
+  margin-inline: auto;
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+@media (min-width: 640px) {
+  .home-layout .today-invitation-composition:has(.today-planner-illustration) { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); }
+  .home-layout .today-planner-illustration { width: 100%; max-width: 320px; }
+}
+@media (max-width: 639px) {
+  .home-layout .today-planner-illustration { width: 170px; }
+}
+
+/* Match the existing Home frame exactly; do not widen the body. */
+.home-nav-canvas { max-width: 1640px; }
+.home-nav-canvas .app-nav-tab { font-size: 15px; }
+@media (min-width: 1500px) { .home-nav-canvas { padding-inline: 56px; } }
+
+/* Decorative Home artwork only; real focus identity/timer/actions stay above. */
+.home-layout .home-focus-artwork { display: none; }
+@media (min-width: 1100px) {
+  .home-layout .focus-hero { overflow: hidden; isolation: isolate; min-height: 290px; }
+  .home-layout .home-focus-artwork {
+    display: block;
+    position: absolute;
+    width: 160px;
+    height: 120px;
+    object-fit: cover;
+    right: 32px;
+    top: auto;
+    bottom: 94px;
+    opacity: .3;
+    mix-blend-mode: multiply;
+    pointer-events: none;
+    z-index: -1;
+  }
+}
+
+/* Focus adopts Home's teal identity without changing other page themes. */
+.focus-workspace {
+  --color-primary: #236B65;
+  --color-primary-control: #236B65;
+  --color-primary-hover: #195650;
+  --color-primary-foreground: #FDF8EA;
+  --color-foreground: #202826;
+  --color-muted-foreground: #65706B;
+  --color-ring: #236B65;
+  --color-soft-accent: #D8E8E2;
+  color: var(--color-foreground);
+}
+.focus-workspace > .quiet-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding-block: 8px;
+  font-size: 16px;
+}
+.focus-workspace [data-slot="button"].bg-primary:hover:not(:disabled) { background-color: var(--color-primary-hover); }
+.focus-workspace .focus-actions > button:first-child { background: var(--color-soft-accent); color: var(--color-primary); }
+.focus-workspace .focus-actions > button:first-child:hover:not(:disabled) { background: var(--color-background); }
+@media (max-width: 767px) {
+  main:has(.focus-workspace) { background-position: 48% top; }
+}
+
+/* Restrained 100%-zoom density: display scale/spacing, not body text or targets. */
+.home-layout { --home-density-gap: 24px; }
+.home-layout > * + * { margin-top: var(--home-density-gap); }
+.home-layout .home-greeting { font-size: 30px; }
+.home-layout .home-greeting-detail { font-size: 17px; }
+.home-layout .home-work-grid { gap: 22px; }
+.home-layout .home-primary { gap: 22px; }
+.home-layout .home-primary .plan-invitation,
+.home-layout .home-primary .today-plan,
+.home-layout .home-primary .focus-hero { padding: 22px; }
+.home-layout .plan-invitation .display-title { font-size: 36px; }
+.home-layout .today-plan .display-title { font-size: 28px; }
+.home-layout .focus-summary-content .display-title { font-size: 26px; }
+.home-layout .pick-back-up, .home-layout .home-upcoming, .home-layout .prep-area-object { padding: 22px; }
+.home-layout .today-work-row { padding-block: 18px; }
+.home-layout .today-planner-illustration { max-width: 290px; }
+.home-layout .home-start-other { margin-top: 28px; padding-top: 28px; }
+.home-layout .home-start-other h2 { font-size: 26px; }
+.home-layout .home-start-other .prep-area-objects { margin-top: 22px; }
+.home-layout .today-invitation-composition { gap: 22px; }
+.home-layout .today-invitation-copy .invitation-copy { margin-top: 22px; }
+.home-layout .home-focus-artwork { width: 144px; height: 108px; bottom: 90px; }
+.home-layout .focus-hero { min-height: 270px; }
+.home-nav-canvas .app-nav-tab { font-size: 14.5px; }
+.focus-workspace { padding-top: 24px; }
+.focus-content { margin-top: 32px; }
+.focus-task-title { font-size: clamp(30px, 3.6vw, 48px); }
+.focus-elapsed { font-size: clamp(50px, 5.5vw, 80px); }
+.focus-scene { gap: 24px; padding-bottom: 32px; }
+.focus-notes textarea { height: 300px; }
+.focus-actions { margin-top: 22px; }
+@media (min-width: 640px) {
+  .home-layout .home-greeting { font-size: 44px; }
+  .home-layout .home-primary .plan-invitation, .home-layout .home-primary .today-plan, .home-layout .home-primary .focus-hero { padding: 28px; }
+  .home-layout .plan-invitation .display-title { font-size: 44px; }
+  .home-layout .today-plan .display-title { font-size: 34px; }
+}
+@media (min-width: 768px) {
+  .focus-workspace { padding-top: 32px; }
+  .focus-content { margin-top: 42px; }
+  .focus-scene { column-gap: 44px; row-gap: 24px; }
+  .focus-notes { padding: 22px; }
+}
+@media (min-width: 1100px) {
+  .home-layout .home-work-grid:has(.home-secondary-rail > *) { column-gap: 36px; }
+  .home-layout .home-start-other h2 { font-size: 31px; }
+  .home-layout .prep-area-objects { gap: 22px; }
+}
+@media (min-width: 1500px) {
+  .home-layout .home-work-grid:has(.home-secondary-rail > *) { column-gap: 44px; }
+}
+.home-layout .home-primary > * + * { margin-top: 22px; }
+.home-layout .home-secondary-rail { gap: 14px; }
+.home-layout .today-plan-subordinate .display-title,
+.home-layout .plan-invitation-subordinate .display-title { font-size: 22px; }
+
+/* Desktop fold cue: recover empty invitation whitespace, not global scale. */
+@media (min-width: 1100px) {
+  .home-layout { padding-top: 32px; }
+  .home-layout > .home-work-grid { margin-top: 20px; }
+  .home-layout .home-primary .plan-invitation:not(.plan-invitation-subordinate) { padding-block: 24px; }
+  .home-layout .plan-invitation:not(.plan-invitation-subordinate) > * + * { margin-top: 12px; }
+  .home-layout .today-planner-illustration { max-width: 270px; height: 210px; object-fit: cover; object-position: center; }
+  .home-layout .home-start-other { margin-top: 22px; padding-top: 22px; }
+}
+
+/* Transient Home acknowledgement uses the existing focus card, not a new mode. */
+.home-layout .home-completion-label { display: flex; align-items: center; gap: 8px; }
+.home-layout .home-completion .focus-summary-timer { position: static; padding-top: 16px; }
+/* Full top-to-bottom flip in the anchored primary slot: 650ms per face, no fade. */
+.home-layout .home-primary.is-completion-arriving {
+  transition: height 650ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.home-layout .home-primary.is-completion-leaving > .home-completion {
+  transform-origin: center;
+  backface-visibility: hidden;
+  animation: home-card-turn-out 650ms cubic-bezier(0.55, 0.05, 0.85, 0.5) both;
+}
+.home-layout .home-primary.is-completion-arriving > section:first-child {
+  transform-origin: center;
+  backface-visibility: hidden;
+  animation: home-card-turn-in 650ms cubic-bezier(0.15, 0.5, 0.3, 1) both;
+}
+@keyframes home-card-turn-out {
+  from { transform: perspective(1600px) rotateX(0deg); }
+  to { transform: perspective(1600px) rotateX(-90deg); }
+}
+@keyframes home-card-turn-in {
+  from { transform: perspective(1600px) rotateX(90deg); }
+  to { transform: perspective(1600px) rotateX(0deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-layout .home-primary.is-completion-arriving { transition: none; }
+  .home-layout .home-primary.is-completion-leaving > .home-completion,
+  .home-layout .home-primary.is-completion-arriving > section:first-child { animation: none; }
+}

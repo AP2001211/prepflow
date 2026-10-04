@@ -376,3 +376,20 @@ describe('daily retries across midnight', () => {
     } finally { vi.useRealTimers() }
   })
 })
+
+it('autosaves owned active notes, preserves final notes, and starts resumed notes empty', async () => {
+  const f = fixture()
+  const sessionId = await f.start()
+  const notes = '  Working notebook\n\n'
+  expect((await f.call('saveSessionNotes', { sessionId, notes })).success).toBe(true)
+  expect(f.row('prep-sessions', sessionId)?.data.notes).toBe(notes)
+  expect((await f.call('saveSessionNotes', { sessionId, notes: 'forged' }, 'bob')).success).toBe(false)
+  await f.call('reportStuck', { sessionId })
+  expect(f.row('prep-sessions', sessionId)?.data.notes).toBe(notes)
+  await f.stop(sessionId, 'stopped', { notes: 'final notebook' })
+  expect(f.row('prep-sessions', sessionId)?.data.notes).toBe('final notebook')
+  expect((await f.call('saveSessionNotes', { sessionId, notes: 'late' })).success).toBe(false)
+  const resumed = await f.start()
+  expect(f.row('prep-sessions', resumed)?.data.notes).toBeUndefined()
+  expect(f.row('prep-sessions', sessionId)?.data.notes).toBe('final notebook')
+})

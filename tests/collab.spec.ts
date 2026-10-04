@@ -23,6 +23,7 @@ import { test, expect, loadAllTestAccounts } from 'deepspace/testing'
 // and say what creates the pool. The count is of accounts usable HERE: the
 // pool is global per developer, but passwords live only on the machine that
 // created the account.
+const lifecycleAcknowledgements = /^(Focus session started\.|Difficulty recorded\. Your session is still active\.|Focus stopped\. Work remains open\.|Work completed\.|Item completion confirmed\.|Resume context saved\.)$/
 const usableTestAccounts = loadAllTestAccounts().length
 test.skip(
   usableTestAccounts < 2,
@@ -36,6 +37,15 @@ test('PrepFlow general preparation, optional interviews, and two-user privacy', 
   const prefix = `__test-${Date.now()}__`
   await Promise.all([alice.page.goto('/home'), bob.page.goto('/home')])
   await expect(alice.page.getByText('Make room for focus.', { exact: true })).toBeVisible()
+  await expect.poll(async () => await alice.page.locator('.focus-hero article').count() > 0 || await alice.page.locator('button.prep-area-object').first().isEnabled()).toBe(true)
+  const leftover = alice.page.locator('.focus-hero article')
+  if (await leftover.count() === 1 && /^__test-\d+__ stopped attempt$/.test(await leftover.locator('h3').innerText())) {
+    // Only recover this test's own failed stopped-attempt fixture.
+    await alice.page.getByRole('link', { name: 'Return to focus →', exact: true }).click()
+    await alice.page.getByRole('button', { name: 'Stop', exact: true }).click()
+    await alice.page.getByRole('button', { name: 'Skip', exact: true }).click()
+    await expect(alice.page).toHaveURL(/\/home$/)
+  }
   await expect(bob.page.getByText('Make room for focus.', { exact: true })).toBeVisible()
   await Promise.all([alice.page.goto('/prep'), bob.page.goto('/prep')])
   const areaName = `${prefix} SQL`
@@ -56,16 +66,48 @@ test('PrepFlow general preparation, optional interviews, and two-user privacy', 
   await alice.page.getByRole('combobox', { name: 'Prep Area', exact: true }).selectOption(areaId!)
   const intent = `${prefix} Practice window functions`
   await alice.page.getByLabel('What do you intend to work on?').fill(intent)
+  const startDialog = alice.page.getByRole('dialog', { name: 'Start something else', exact: true })
+  expect(await startDialog.evaluate((node) => getComputedStyle(node).backgroundColor)).toBe('rgb(252, 248, 239)')
+  expect(await startButton.evaluate((node) => getComputedStyle(node).backgroundColor)).toBe('rgb(35, 107, 101)')
+  await alice.page.screenshot({ path: '/tmp/prepflow-start-dialog-desktop.png', fullPage: true })
+  await alice.page.setViewportSize({ width: 390, height: 844 })
+  expect(await alice.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await alice.page.screenshot({ path: '/tmp/prepflow-start-dialog-mobile.png', fullPage: true })
+  await alice.page.setViewportSize({ width: 1280, height: 720 })
+  const startItemIds: string[] = []
+  await alice.page.route('**/api/actions/startPrepSession', async (route) => {
+    startItemIds.push(route.request().postDataJSON().planItemId)
+    if (startItemIds.length === 1) await route.fulfill({ status: 200, json: { success: false, error: 'Fixture start rejected' } })
+    else await route.continue()
+  })
   await startButton.click()
-  await alice.page.getByRole('link', { name: 'Return to focus →', exact: true }).click()
+  await expect(startDialog.getByRole('alert')).toBeVisible()
+  await expect(alice.page).toHaveURL(/\/home$/)
+  await startButton.click()
+  await expect(alice.page).toHaveURL(/\/focus$/)
+  await alice.page.unroute('**/api/actions/startPrepSession')
+  expect(startItemIds).toHaveLength(2)
+  expect(startItemIds[1]).toBe(startItemIds[0])
   const focus = alice.page.locator('article').filter({ has: alice.page.getByRole('heading', { name: intent, exact: true }) })
   await expect(focus).toBeVisible()
+  await expect(alice.page.getByText(lifecycleAcknowledgements)).toHaveCount(0)
   await expect(focus.getByText('General preparation', { exact: false })).toBeVisible()
   await expect(startButton).toHaveCount(0)
   await expect(bob.page.getByRole('heading', { name: intent, exact: true })).toHaveCount(0)
   await focus.getByLabel('Session notes — progress, difficulty, or where you stopped').fill('Unsure about partitioning; continued practicing.')
   await focus.getByRole('button', { name: 'Report difficulty (keep working)', exact: true }).click()
-  await expect(focus.getByText('Difficulty reported during this attempt.', { exact: false })).toBeVisible()
+  await expect(focus.getByRole('status').filter({ hasText: 'Difficulty reported during this attempt.' })).toBeVisible()
+  await alice.page.getByRole('link', { name: '← Home', exact: true }).click()
+  await expect(alice.page.getByText(lifecycleAcknowledgements)).toHaveCount(0)
+  const navigation = alice.page.getByTestId('app-navigation')
+  await navigation.getByRole('link', { name: 'Plans', exact: true }).click()
+  await expect(alice.page.getByText(lifecycleAcknowledgements)).toHaveCount(0)
+  await navigation.getByRole('link', { name: 'History', exact: true }).click()
+  await expect(alice.page.getByText(lifecycleAcknowledgements)).toHaveCount(0)
+  await navigation.getByRole('link', { name: 'Home', exact: true }).click()
+  await alice.page.getByRole('link', { name: 'Return to focus →', exact: true }).click()
+  await expect(focus.getByRole('status').filter({ hasText: 'Difficulty reported during this attempt.' })).toBeVisible()
+  await expect(alice.page.getByText(lifecycleAcknowledgements)).toHaveCount(0)
   await focus.getByRole('button', { name: 'Complete', exact: true }).click()
   await expect(focus).toHaveCount(0)
   await alice.page.goto('/history')
@@ -97,16 +139,19 @@ test('PrepFlow general preparation, optional interviews, and two-user privacy', 
     await alice.page.getByRole('combobox', { name: 'Interview (optional)', exact: true }).selectOption(interviewId!)
     await alice.page.getByLabel('What do you intend to work on?').fill(nextIntent)
     await alice.page.getByRole('button', { name: 'Start focus session', exact: true }).click()
-    await alice.page.getByRole('link', { name: 'Return to focus →', exact: true }).click()
-    const attempt = alice.page.locator('article').filter({ has: alice.page.getByRole('heading', { name: nextIntent, exact: true }) })
+    await expect(alice.page).toHaveURL(/\/focus$/)
+    const attempt = alice.page.locator('article').filter({ has: alice.page.getByRole('heading', { name: nextIntent, exact: true, includeHidden: true }) })
     await expect(attempt).toBeVisible()
     await expect(attempt.getByText(company, { exact: false })).toBeVisible()
     await attempt.getByRole('button', { name: button, exact: true }).click()
-    await expect(attempt).toHaveCount(0)
+    if (outcome === 'switched') await expect(attempt).toHaveCount(0)
+    else await expect(attempt).toBeVisible()
     const stopDialog = alice.page.getByRole('dialog', { name: `${outcome === 'switched' ? 'Switching away from' : 'Stopping'} ${nextIntent}`, exact: true })
     await expect(stopDialog).toBeVisible()
+    await expect(alice.page.getByText(lifecycleAcknowledgements)).toHaveCount(0)
     await stopDialog.getByRole('button', { name: 'Skip', exact: true }).click()
     await alice.page.goto('/history')
+    await expect(alice.page.getByText(lifecycleAcknowledgements)).toHaveCount(0)
     const entry = history.locator('li').filter({ has: alice.page.getByRole('heading', { name: nextIntent, exact: true }) })
     await expect(entry.getByText(new RegExp(`^${outcome} ·`))).toBeVisible()
   }
@@ -240,7 +285,7 @@ test('reusable planned work, optional checkpoints, new resume intervals, and his
   const prefix = `__test-phase2-${Date.now()}__`
   await Promise.all([alice.page.goto('/home'), bob.page.goto('/home')])
   await expect(alice.page.getByText('Make room for focus.', { exact: true })).toBeVisible()
-  const focusSection = alice.page.locator('section').filter({ has: alice.page.getByRole('heading', { name: 'Current Focus', exact: true }) })
+  const focusSection = alice.page.locator('section.focus-content, section.focus-hero')
   test.skip(await focusSection.locator('article').count() > 0, 'Preserve the fixture user’s existing active focus.')
   const tokenFor = async (person: typeof alice) => {
     const response = await person.context.request.post('/api/auth/token', { data: {} })
@@ -386,18 +431,9 @@ test('reusable planned work, optional checkpoints, new resume intervals, and his
     else await route.continue()
   })
   await attempt.getByRole('button', { name: 'Stop', exact: true }).click()
-  await expect(alice.page.getByText('Temporary stop failure', { exact: true })).toBeVisible()
-  const frozenDuration = await attempt.getByLabel('Focus duration', { exact: true }).textContent()
-  await alice.page.getByRole('link', { name: '← Home', exact: true }).click()
-  await nav.getByRole('link', { name: 'Plans', exact: true }).click()
-  await nav.getByRole('link', { name: 'Home', exact: true }).click()
-  await alice.page.getByRole('link', { name: 'Return to focus →', exact: true }).click()
-  await expect(attempt.getByLabel('Focus duration', { exact: true })).toHaveText(frozenDuration!)
-  await attempt.getByRole('button', { name: 'Retry ending focus', exact: true }).click()
-  await expect.poll(() => stopRequests.length).toBe(2)
-  expect(stopRequests[1]!.endedAt).toBe(stopRequests[0]!.endedAt)
-  await alice.page.unrouteAll({ behavior: 'wait' })
-  await expect(attempt).toHaveCount(0)
+  await contextSection.getByRole('button', { name: 'Skip', exact: true }).click()
+  await expect(contextSection.getByRole('alert')).toHaveText('Temporary stop failure')
+  await expect(attempt).toBeVisible()
   await expect(contextSection).toBeVisible()
   await contextSection.getByLabel('Where did you leave off / what was blocking you? (optional)').fill('Transient context draft')
   // Browser back/forward can navigate while a modal is open. The SDK
@@ -407,8 +443,11 @@ test('reusable planned work, optional checkpoints, new resume intervals, and his
   await alice.page.goForward()
   await expect(contextSection.getByLabel('Where did you leave off / what was blocking you? (optional)')).toHaveValue('Transient context draft')
   await contextSection.getByRole('button', { name: 'Skip', exact: true }).click()
-  // A newer interval without context must not display the older checkpoint.
-  await alice.page.getByRole('link', { name: '← Home', exact: true }).click()
+  await expect.poll(() => stopRequests.length).toBe(2)
+  expect(Date.parse(stopRequests[1]!.endedAt)).toBeGreaterThanOrEqual(Date.parse(stopRequests[0]!.endedAt))
+  await alice.page.unrouteAll({ behavior: 'wait' })
+  // Stop + Skip returns Home; newer context must not fall back.
+  await expect(alice.page).toHaveURL(/\/home$/)
   await expect(resumeRow).toBeVisible()
   await expect(resumeRow.getByText('Left off: TEST CONTEXT 123', { exact: true })).toHaveCount(0)
   await expect(resumeRow.getByText('Next: TEST NEXT STEP 456', { exact: true })).toHaveCount(0)
@@ -422,12 +461,41 @@ test('reusable planned work, optional checkpoints, new resume intervals, and his
   await attempt.getByRole('button', { name: 'Complete', exact: true }).click()
   await expect(attempt).toHaveCount(0)
   await expect(resumeRow).toHaveCount(0)
-  await expect(alice.page.getByText('Work completed.', { exact: true })).toBeVisible()
+  await expect(alice.page.getByRole('status', { name: 'Work completed' })).toBeVisible()
+  await expect(alice.page).toHaveURL(/\/home$/)
+  const completedCard = alice.page.getByRole('status', { name: 'Work completed' })
+  await expect(completedCard.getByRole('heading', { name: intent, exact: true })).toBeVisible()
+  await expect(completedCard.getByText(/focused$/)).toBeVisible()
+  expect(await completedCard.evaluate((node) => getComputedStyle(node).backgroundColor)).toBe('rgb(35, 107, 101)')
+  await expect(completedCard.getByRole('link', { name: /Return to focus/ })).toHaveCount(0)
+  // Readable hold, then the same primary slot returns to normal Home content.
+  await alice.page.waitForTimeout(2000)
+  await expect(completedCard).toBeVisible()
+  const primarySlot = alice.page.locator('.home-primary')
+  await expect(primarySlot).toHaveClass(/is-completion-leaving/)
+  expect(await completedCard.evaluate((node) => {
+    const style = getComputedStyle(node)
+    const frames = node.getAnimations().flatMap((animation) => animation.effect instanceof KeyframeEffect ? animation.effect.getKeyframes() : [])
+    return { duration: style.animationDuration, opacity: style.opacity, turnOnly: frames.length > 0 && frames.every((frame) => (frame.opacity === undefined || Number(frame.opacity) === 1) && String(frame.transform).includes('rotateX')) }
+  })).toEqual({ duration: '0.65s', opacity: '1', turnOnly: true })
+  expect(await completedCard.evaluate((node) => node.getAnimations().some((animation) => animation.effect instanceof KeyframeEffect && animation.effect.getKeyframes().some((frame) => String(frame.transform).includes('rotateX(-90deg)'))))).toBe(true)
+  await expect(completedCard).toHaveCount(0)
+  await expect(primarySlot).toHaveClass(/is-completion-arriving/)
+  const nextCard = primarySlot.locator('section').first()
+  expect(await nextCard.evaluate((node) => {
+    const style = getComputedStyle(node)
+    const frames = node.getAnimations().flatMap((animation) => animation.effect instanceof KeyframeEffect ? animation.effect.getKeyframes() : [])
+    return { duration: style.animationDuration, opacity: style.opacity, turnOnly: frames.length > 0 && frames.every((frame) => (frame.opacity === undefined || Number(frame.opacity) === 1) && String(frame.transform).includes('rotateX')) }
+  })).toEqual({ duration: '0.65s', opacity: '1', turnOnly: true })
+  expect(await nextCard.evaluate((node) => node.getAnimations().some((animation) => animation.effect instanceof KeyframeEffect && animation.effect.getKeyframes().some((frame) => String(frame.transform).includes('rotateX(90deg)'))))).toBe(true)
+  await expect(alice.page.getByRole('region', { name: "Today's Plan", exact: true })).toBeVisible()
+  await expect(alice.page.getByText(lifecycleAcknowledgements)).toHaveCount(0)
   expect(await action('startPrepSession', { planItemId: itemId })).toMatchObject({ success: false })
   // Both writes really execute; only their HTTP acknowledgement is lost.
   // Recovery must remain available while navigating away and back.
   const retryItem = await success('createPlanItem', { prepAreaId: areaId, intent: `${prefix} Completion retry` })
   await success('startPrepSession', { planItemId: retryItem })
+  await alice.page.goto('/focus')
   await expect(attempt).toBeVisible()
   await alice.page.route('**/api/actions/endPrepSession', async (route) => {
     const response = await route.fetch()
@@ -436,6 +504,7 @@ test('reusable planned work, optional checkpoints, new resume intervals, and his
   })
   await attempt.getByRole('button', { name: 'Complete', exact: true }).click()
   await expect(alice.page.getByRole('button', { name: 'Retry completion', exact: true })).toBeVisible()
+  await expect(alice.page.getByRole('status', { name: 'Work completed' })).toHaveCount(0)
   // Live sync can expose reconciliation before the intercepted HTTP
   // response finishes. Wait for its handler before removing the route.
   await alice.page.unrouteAll({ behavior: 'wait' })
@@ -443,9 +512,14 @@ test('reusable planned work, optional checkpoints, new resume intervals, and his
   await nav.getByRole('link', { name: 'Plans', exact: true }).click()
   await nav.getByRole('link', { name: 'Home', exact: true }).click()
   await alice.page.getByRole('link', { name: 'Return to focus →', exact: true }).click()
+  await alice.page.emulateMedia({ reducedMotion: 'reduce' })
   await alice.page.getByRole('button', { name: 'Retry completion', exact: true }).click()
-  await expect(alice.page.getByText('Item completion confirmed.', { exact: true })).toBeVisible()
+  await expect(alice.page.getByRole('status', { name: 'Work completed' })).toBeVisible()
+  expect(await alice.page.getByRole('status', { name: 'Work completed' }).evaluate((node) => getComputedStyle(node).animationName)).toBe('none')
+  await expect(alice.page).toHaveURL(/\/home$/)
   await expect(alice.page.getByRole('button', { name: 'Retry completion', exact: true })).toHaveCount(0)
+  await expect(alice.page.getByText(lifecycleAcknowledgements)).toHaveCount(0)
+  // Navigation is never blocked by the temporary card.
   expect(await action('startPrepSession', { planItemId: retryItem })).toMatchObject({ success: false })
   await alice.page.goto('/history')
   const history = alice.page.locator('section').filter({ has: alice.page.getByRole('heading', { name: 'Recent Focus History', exact: true }) })
@@ -453,5 +527,6 @@ test('reusable planned work, optional checkpoints, new resume intervals, and his
   await alice.page.reload()
   await expect(history.getByRole('heading', { name: intent, exact: true })).toHaveCount(3)
   await alice.page.goto('/home')
+  await expect(alice.page.getByRole('status', { name: 'Work completed' })).toHaveCount(0)
   await expect(continueSection.getByRole('heading', { name: intent, exact: true })).toHaveCount(0)
 })

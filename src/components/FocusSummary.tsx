@@ -13,6 +13,7 @@ export function FocusSummary() {
   useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(timer) }, [])
   if (focus.loaded && !focus.active.length && !focus.pending.length && !focus.awaitingFocus && !focus.sessions.error && !focus.items.error) return null
   return <section aria-label="Current Focus" className={focus.active.length ? 'home-hero focus-hero' : 'quiet-focus'}>
+    {focus.active.length === 1 && <img className="home-focus-artwork" src="/images/illustrations/focus-target.png" width="800" height="800" alt="" aria-hidden="true" />}
     <h2 className={focus.active.length ? 'eyebrow' : 'text-sm font-medium'}>Current Focus</h2>
     {!focus.loaded && <p role="status">Loading focus…</p>}
     {(focus.sessions.error || focus.items.error) && <p role="alert">Could not load focus. Reconnect or reload.</p>}

@@ -39,7 +39,7 @@ export function FocusAttempt({ record, area, interview, disabled, predecessor, n
           {!(predecessor?.data.leftOff || predecessor?.data.nextStep) && <p className="focus-context-empty">No saved context from your previous attempt.</p>}
         </aside>
       </div>
-      {record.data.encounteredStuck ? <p className="text-sm">Difficulty reported during this attempt. You can keep working.</p> : null}
+      {record.data.encounteredStuck ? <p role="status" className="text-sm">Difficulty reported during this attempt. You can keep working.</p> : null}
       <FocusNotebook intent={record.data.intent} notes={notes} onNotes={onNotes} disabled={disabled || !!stop} />
       {stop ? (
         <div className="space-y-2">
@@ -54,7 +54,7 @@ export function FocusAttempt({ record, area, interview, disabled, predecessor, n
           <Button variant="ghost" className="focus-switch" disabled={disabled} onClick={() => void onEnd('switched')}>End to switch</Button>
         </div>
       )}
-      <p className="focus-helper">Notes save when you report difficulty or end focus. Switch/Stop leaves the work open; resume context is optional and can be added afterward.</p>
+      <p className="focus-helper">Notes autosave while you work and save when you report difficulty or end focus. Switch/Stop leaves the work open; resume context is optional and can be added afterward.</p>
     </article>
   )
 }

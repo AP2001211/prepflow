@@ -76,3 +76,24 @@
   --shadow-card: 0 5px 24px rgba(40, 42, 54, 0.035);
   --shadow-card-hover: 0 8px 28px rgba(40, 42, 54, 0.06);
 }
+
+/* Portaled dialogs share PrepFlow's warm surfaces and current teal controls. */
+[data-theme="prepflow"] [data-slot="dialog-content"] {
+  --color-background: #FDF8EA;
+  --color-card: var(--color-surface-raised-warm);
+  --color-card-foreground: #202826;
+  --color-foreground: #202826;
+  --color-muted-foreground: #65706B;
+  --color-primary: #236B65;
+  --color-primary-control: #236B65;
+  --color-primary-hover: #195650;
+  --color-primary-foreground: #FDF8EA;
+  --color-secondary: #D8E8E2;
+  --color-secondary-foreground: #202826;
+  --color-accent: #D8E8E2;
+  --color-accent-foreground: #202826;
+  --color-ring: #236B65;
+}
+[data-theme="prepflow"] [data-slot="dialog-content"] [data-slot="button"].bg-primary:hover:not(:disabled) {
+  background-color: var(--color-primary-hover);
+}

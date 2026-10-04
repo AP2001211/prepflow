@@ -6,6 +6,7 @@ import { canWrite, owns } from './prep-actions'
 
 const id = z.string().min(1).max(200)
 const text = z.string().trim().max(10000)
+const notesText = z.string().max(10000)
 const datetime = z.iso.datetime({ offset: true })
 const planInput = z.object({
   title: text.min(1).max(200), startsAt: datetime.optional(), endsAt: datetime.optional(),
@@ -13,14 +14,14 @@ const planInput = z.object({
 }).strict().refine((data) => !data.startsAt || !data.endsAt || Date.parse(data.endsAt) > Date.parse(data.startsAt), 'The plan end must follow its start.')
 const itemInput = z.object({ prepAreaId: id, interviewId: id.optional(), intent: text.min(1), planId: id.optional(), requestId: z.uuid().optional() }).strict()
 const membershipInput = z.object({ planId: id, planItemId: id }).strict()
-const startInput = z.object({ planItemId: id, planId: id.optional(), notes: text.optional() }).strict()
+const startInput = z.object({ planItemId: id, planId: id.optional(), notes: notesText.optional() }).strict()
 const endInput = z.object({
   sessionId: id, outcome: z.enum(['completed', 'stopped', 'switched']), endedAt: datetime,
-  notes: text.optional(), leftOff: text.optional(), nextStep: text.optional(),
+  notes: notesText.optional(), leftOff: text.optional(), nextStep: text.optional(),
 }).strict()
 const contextInput = z.object({ sessionId: id, leftOff: text.optional(), nextStep: text.optional() }).strict()
 const sessionIdInput = z.object({ sessionId: id }).strict()
-const stuckInput = z.object({ sessionId: id, notes: text.optional() }).strict()
+const stuckInput = z.object({ sessionId: id, notes: notesText.optional() }).strict()
 const planIdInput = z.object({ planId: id }).strict()
 
 function failure(error: string, code?: string): ActionResult {
@@ -188,6 +189,12 @@ export const reportStuck = action(stuckInput, async (ctx, data) => {
   return ctx.tools.update('prep-sessions', session.recordId, { encounteredStuck: true, ...(data.notes !== undefined ? { notes: data.notes } : {}) })
 })
 
+export const saveSessionNotes = action(z.object({ sessionId: id, notes: notesText }).strict(), async (ctx, data) => {
+  const session = await owned<PrepSession>(ctx, 'prep-sessions', data.sessionId)
+  if (!session || session.data.state !== 'active') return failure('Notes can only autosave on your active session.')
+  return ctx.tools.update('prep-sessions', session.recordId, { notes: data.notes })
+})
+
 export const saveResumeContext = action(contextInput, async (ctx, data) => {
   const session = await owned<PrepSession>(ctx, 'prep-sessions', data.sessionId)
   if (!session || session.data.state !== 'ended' || !['stopped', 'switched'].includes(session.data.outcome ?? '')) return failure('Resume context belongs to a stopped or switched interval.')
@@ -197,4 +204,4 @@ export const saveResumeContext = action(contextInput, async (ctx, data) => {
   })
 })
 
-export const planningActions = { createPlan, createPlanItem, addPlanItem, closePlan, startPrepSession, endPrepSession, reconcileCompletion, reportStuck, saveResumeContext }
+export const planningActions = { createPlan, createPlanItem, addPlanItem, closePlan, startPrepSession, endPrepSession, reconcileCompletion, reportStuck, saveResumeContext, saveSessionNotes }
