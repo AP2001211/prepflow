@@ -1,8 +1,7 @@
 /**
  * Top nav — minimal placeholder bar wired to the app's mechanisms:
- * nav.ts-driven links (with role/dev filtering), sign-in via <AuthOverlay>,
- * and sign-out. Restyle or rebuild it freely; keep the data-testid hooks
- * (`app-navigation`, `nav-sign-in-button`, `nav-user-name`, `nav-user-email`)
+ * nav.ts-driven links (with role/dev filtering) and sign-out. Restyle or rebuild it freely; keep the data-testid hooks
+ * (`app-navigation`, `nav-user-name`, `nav-user-email`)
  * — the shipped tests rely on them. `nav-user-email` is the one that carries
  * an identity the test can check exactly: a display name is optional, the
  * email is the credential the session was opened with.
@@ -10,7 +9,7 @@
 
 import { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { AuthOverlay, useAuthProfileReady, signOut } from 'deepspace'
+import { useAuthProfileReady, signOut } from 'deepspace'
 import { ChevronDown, LogOut, Menu, X } from 'lucide-react'
 import { APP_NAME } from '../constants'
 import type { Role } from '../constants'
@@ -32,7 +31,6 @@ export default function Navigation() {
   const { isLoaded, isSignedIn, user, userLoading } = useAuthProfileReady({ requireUser: true })
   const location = useLocation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [showAuthModal, setShowAuthModal] = useState(false)
 
   const profileReady = !isSignedIn || (!userLoading && !!user)
   const userRole = (user?.role ?? 'anonymous') as Role | 'anonymous'
@@ -69,13 +67,13 @@ export default function Navigation() {
 
   return (
     <>
-      <nav data-testid="app-navigation" className="border-b border-border bg-background/95">
+      <nav data-testid="app-navigation" className={cn("border-b border-border bg-background/95", !isSignedIn && "signed-out-shell")}>
         <div className="home-nav-canvas flex h-16 items-center gap-4">
           <Link to="/home" className="text-sm font-semibold text-foreground">
             {APP_NAME}
           </Link>
 
-          <div className="hidden items-center md:flex">{visibleNav.map(navLink)}</div>
+          <div className="hidden items-center md:flex">{isSignedIn && visibleNav.map(navLink)}</div>
 
           <div className="flex-1" />
 
@@ -133,34 +131,24 @@ export default function Navigation() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          ) : (
-            <button
-              data-testid="nav-sign-in-button"
-              onClick={() => setShowAuthModal(true)}
-              className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90"
-            >
-              Sign in
-            </button>
-          )}
+          ) : null}
 
-          <button
+          {isSignedIn && <button
             className="inline-flex h-8 w-8 items-center justify-center text-muted-foreground hover:text-foreground md:hidden"
             onClick={() => setMobileMenuOpen((prev) => !prev)}
             aria-label="Toggle menu"
             aria-expanded={mobileMenuOpen}
           >
             {mobileMenuOpen ? <X className="h-4 w-4" aria-hidden /> : <Menu className="h-4 w-4" aria-hidden />}
-          </button>
+          </button>}
         </div>
 
-        {mobileMenuOpen && (
+        {isSignedIn && mobileMenuOpen && (
           <div className="flex flex-col border-t border-border px-2 py-2 md:hidden">
             {visibleNav.map(navLink)}
           </div>
         )}
       </nav>
-
-      {showAuthModal && <AuthOverlay onClose={() => setShowAuthModal(false)} />}
     </>
   )
 }

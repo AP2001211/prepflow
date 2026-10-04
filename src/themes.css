@@ -129,3 +129,37 @@
 [data-theme="prepflow"] [data-slot="dialog-content"] [data-slot="button"].bg-primary:hover:not(:disabled) {
   background-color: var(--color-primary-hover);
 }
+
+/* Public entry and SDK auth only: authenticated product scopes stay intact. */
+[data-theme="prepflow"] .public-entry,
+[data-theme="prepflow"] .signed-out-shell,
+[data-theme="prepflow"] [data-testid="auth-overlay"] {
+  --color-background: #FDF8EA;
+  --color-foreground: #202826;
+  --color-card: #FCF8EF;
+  --color-card-foreground: #202826;
+  --color-primary: #236B65;
+  --color-primary-control: #236B65;
+  --color-primary-hover: #195650;
+  --color-primary-foreground: #FDF8EA;
+  --color-secondary: #D8E8E2;
+  --color-secondary-foreground: #202826;
+  --color-accent: #D8E8E2;
+  --color-accent-foreground: #202826;
+  --color-muted-foreground: #65706B;
+  --color-ring: #236B65;
+  color: var(--color-foreground);
+}
+.public-entry .public-primary:hover:not(:disabled),
+[data-testid="auth-overlay"] button.bg-primary:hover:not(:disabled) { background-color: var(--color-primary-hover); }
+.public-entry a:focus-visible,
+.signed-out-shell button:focus-visible,
+.signed-out-shell a:focus-visible,
+[data-testid="auth-overlay"] button:focus-visible,
+[data-testid="auth-overlay"] a:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 4px;
+}
+.signed-out-nav-action { color: var(--color-primary); min-height: 44px; }
+.signed-out-nav-action:hover { background-color: var(--color-soft-accent, #D8E8E2); }
+[data-testid="auth-overlay"] { overflow-y: auto; padding-block: 24px; }

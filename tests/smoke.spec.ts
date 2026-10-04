@@ -57,9 +57,12 @@ test.describe('Smoke tests', () => {
     await expect(page.getByTestId('app-navigation')).toBeVisible({ timeout: 15000 })
   })
 
-  test('sign-in button visible when logged out', async ({ page }) => {
+  test('signed-out navbar leaves authentication to the gateway', async ({ page }) => {
     await page.goto('/home')
-    await expect(page.getByTestId('nav-sign-in-button')).toBeVisible({ timeout: 15000 })
+    const nav = page.getByTestId('app-navigation')
+    await expect(nav.getByRole('link', { name: 'prepflow', exact: true })).toBeVisible({ timeout: 15000 })
+    await expect(nav.getByRole('button', { name: 'Sign in', exact: true })).toHaveCount(0)
+    await expect(page.locator('.signed-out-gateway').getByRole('button', { name: 'Sign in', exact: true })).toBeVisible()
     await expect(page.getByTestId('nav-user-name')).toHaveCount(0)
   })
 
@@ -71,31 +74,50 @@ test.describe('Smoke tests', () => {
 
   test('PrepFlow workspace stays private while signed out', async ({ page }) => {
     await page.goto('/home')
-    await expect(page.getByText('Sign in using the navigation above')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Keep your interview preparation moving.' })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Current Focus' })).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Create Prep Area', exact: true })).toHaveCount(0)
   })
 })
 
-test('workspace navigation exposes separate protected destinations', async ({ page }) => {
-  await page.goto('/home')
-  const nav = page.getByTestId('app-navigation')
-  for (const [label, path] of [['Plans', '/plans'], ['My Prep', '/prep'], ['History', '/history']] as const) {
-    await nav.getByRole('link', { name: label, exact: true }).click()
-    await expect(page).toHaveURL(new RegExp(`${path}$`))
-    await expect(nav.getByRole('link', { name: label, exact: true })).toHaveAttribute('aria-current', 'page')
-    await expect(page.getByRole('heading', { name: 'Sign in to continue', exact: true })).toBeVisible()
-  }
-  await page.goto('/plans/unknown-plan')
-  await expect(page.getByRole('heading', { name: 'Sign in to continue', exact: true })).toBeVisible()
+test('public entry uses product copy and enters the app', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByRole('heading')).toContainText('Prepare with intention.')
+  await expect(page.getByText('A DeepSpace app with a static front door')).toHaveCount(0)
+  await page.getByRole('link', { name: 'Start preparing' }).click()
+  await expect(page).toHaveURL(/\/home$/)
 })
 
-test('mobile navigation reaches workspace destinations', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 })
-  await page.goto('/home')
-  const nav = page.getByTestId('app-navigation')
-  await nav.getByRole('button', { name: 'Toggle menu', exact: true }).click()
-  await nav.getByRole('link', { name: 'Plans', exact: true }).last().click()
-  await expect(page).toHaveURL(/\/plans$/)
-  await expect(nav.getByRole('button', { name: 'Toggle menu', exact: true })).toHaveAttribute('aria-expanded', 'false')
-})
+for (const width of [1440, 390]) {
+  test(`signed-out gateway and auth overlay at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 })
+    for (const path of ['/home', '/plans', '/plans/suggest', '/plans/unknown-plan', '/prep', '/history', '/settings', '/focus']) {
+      await page.goto(path)
+      await expect(page).toHaveURL(new RegExp(`${path}$`))
+      await expect(page.getByRole('heading', { name: 'Keep your interview preparation moving.' })).toBeVisible()
+      const nav = page.getByTestId('app-navigation')
+      if (path !== '/focus') {
+        await expect(nav.getByRole('link', { name: 'prepflow', exact: true })).toBeVisible()
+      }
+      await expect(nav.getByRole('button', { name: 'Sign in', exact: true })).toHaveCount(0)
+      await expect(page.locator('.signed-out-gateway').getByRole('button', { name: 'Sign in', exact: true })).toBeVisible()
+      for (const label of ['Home', 'Plans', 'My Prep', 'History']) {
+        await expect(nav.getByRole('link', { name: label, exact: true })).toHaveCount(0)
+      }
+      await expect(page.getByRole('button', { name: 'Toggle menu' })).toHaveCount(0)
+      await expect(page.getByRole('button', { name: 'Create Prep Area', exact: true })).toHaveCount(0)
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    }
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+    const overlay = page.getByTestId('auth-overlay')
+    await expect(overlay.getByRole('heading', { name: 'Sign in to PrepFlow' })).toBeVisible()
+    await expect(overlay.getByText('Continue your interview preparation where you left off.')).toBeVisible()
+    await expect(overlay.getByRole('button', { name: 'Continue with GitHub' })).toBeVisible()
+    await expect(overlay.getByRole('button', { name: 'Continue with Google' })).toBeVisible()
+    await overlay.getByRole('button', { name: 'Sign in with email' }).click()
+    expect(await overlay.getByRole('button', { name: 'Sign in', exact: true }).evaluate(n => getComputedStyle(n).backgroundColor)).toBe('rgb(35, 107, 101)')
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await overlay.getByRole('button', { name: 'Close', exact: true }).click()
+    await expect(overlay).toHaveCount(0)
+  })
+}

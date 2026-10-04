@@ -100,6 +100,11 @@ test('PrepFlow general preparation, optional interviews, and two-user privacy', 
   await alice.page.getByRole('link', { name: '← Home', exact: true }).click()
   await expect(alice.page.getByText(lifecycleAcknowledgements)).toHaveCount(0)
   const navigation = alice.page.getByTestId('app-navigation')
+  for (const [label, path] of [['Home', '/home'], ['Plans', '/plans'], ['My Prep', '/prep'], ['History', '/history']] as const) {
+    await expect(navigation.getByRole('link', { name: label, exact: true })).toHaveAttribute('href', path)
+  }
+  await expect(navigation.getByRole('button', { name: 'Account menu' })).toBeVisible()
+  await expect(navigation.getByTestId('nav-sign-in-button')).toHaveCount(0)
   await navigation.getByRole('link', { name: 'Plans', exact: true }).click()
   await expect(alice.page.getByText(lifecycleAcknowledgements)).toHaveCount(0)
   await navigation.getByRole('link', { name: 'History', exact: true }).click()

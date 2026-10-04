@@ -765,3 +765,12 @@ main:has(.focus-workspace) {
   .home-layout .home-primary.is-completion-leaving > .home-completion,
   .home-layout .home-primary.is-completion-arriving > section:first-child { animation: none; }
 }
+
+/* Signed-out presentation; no authenticated layout selectors. */
+.signed-out-gateway { display: flex; min-height: 70vh; align-items: center; justify-content: center; padding: 48px 24px; text-align: center; }
+.signed-out-gateway-content { width: 100%; max-width: 540px; }
+.public-brand { margin-bottom: 20px; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .14em; color: var(--color-primary); }
+.signed-out-gateway h1 { font-size: clamp(28px, 4vw, 40px); font-weight: 600; line-height: 1.15; letter-spacing: -.03em; }
+.public-description { margin: 20px auto 28px; max-width: 420px; color: var(--color-muted-foreground); line-height: 1.65; }
+.public-back { display: block; width: fit-content; margin: 20px auto 0; color: var(--color-muted-foreground); font-size: 14px; }
+.public-back:hover { color: var(--color-primary); }

@@ -25,7 +25,7 @@ declare const __DEEPSPACE_SITE_ORIGIN__: string | undefined
 
 export const seo = {
   title: APP_NAME,
-  description: `${APP_NAME} is a real-time collaborative app.`,
+  description: 'PrepFlow helps you organize interview preparation into focused sessions and pick up where you left off.',
   /** Public origin for canonical URLs, og:url, and the sitemap — no trailing
    *  slash. Replace with the custom domain once one is attached, e.g.
    *  'https://www.example.com'. */
