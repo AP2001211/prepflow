@@ -36,7 +36,7 @@ export function plannerErrorDiagnostics(error: unknown) {
       for (const issue of current.issues.slice(0, 5)) {
         if (!issue || typeof issue !== 'object') continue
         issues.push({
-          path: Array.isArray(issue.path) ? issue.path.slice(0, 8).map((part: unknown) => typeof part === 'number' ? part : typeof part === 'string' && /^(items|title|rationale|kind|intent|prepAreaId|interviewId|existingPlanItemId|estimatedMinutes|reason)$/.test(part) ? part : '[field]').join('.') : '',
+          path: Array.isArray(issue.path) ? issue.path.slice(0, 8).map((part: unknown) => typeof part === 'number' ? part : typeof part === 'string' && /^(items|title|rationale|kind|intent|instructions|prepAreaId|interviewId|existingPlanItemId|estimatedMinutes|reason)$/.test(part) ? part : '[field]').join('.') : '',
           code: typeof issue.code === 'string' ? diagnosticText(issue.code) : 'unknown',
           message: typeof issue.message === 'string' ? diagnosticText(issue.message) : 'Validation failed',
         })

@@ -25,7 +25,7 @@ export const acceptPrepPlan = action(acceptanceSchema, async (ctx, input) => {
     for (const [index, entry] of proposal.items.entries()) {
       if (entry.kind !== 'new') continue
       const item = await owned<PlanItem>(ctx, 'plan-items', itemIds[index]!)
-      if (!item || item.data.intent !== entry.intent || item.data.prepAreaId !== entry.prepAreaId || (item.data.interviewId ?? null) !== (entry.interviewId ?? null)) {
+      if (!item || item.data.intent !== entry.intent || (item.data.instructions ?? null) !== (entry.instructions ?? null) || item.data.prepAreaId !== entry.prepAreaId || (item.data.interviewId ?? null) !== (entry.interviewId ?? null)) {
         return { success: false, error: 'This submission already belongs to different intended work.' }
       }
     }
@@ -56,11 +56,11 @@ export const acceptPrepPlan = action(acceptanceSchema, async (ctx, input) => {
     if (!prior.success) return { success: false, error: 'Could not check intended work. Retry Use this plan.' }
     if (prior.data.records.length) {
       const item = prior.data.records[0]!
-      if (item.createdBy !== ctx.userId || item.data.intent !== entry.intent || item.data.prepAreaId !== entry.prepAreaId || (item.data.interviewId ?? null) !== (entry.interviewId ?? null) || item.data.status !== 'open' || await hasPendingCompletion(ctx, id)) {
+      if (item.createdBy !== ctx.userId || item.data.intent !== entry.intent || (item.data.instructions ?? null) !== (entry.instructions ?? null) || item.data.prepAreaId !== entry.prepAreaId || (item.data.interviewId ?? null) !== (entry.interviewId ?? null) || item.data.status !== 'open' || await hasPendingCompletion(ctx, id)) {
         return { success: false, error: 'This submission’s intended work changed. Build a new suggestion.' }
       }
     } else {
-      const created = await ctx.tools.create('plan-items', { intent: entry.intent, prepAreaId: entry.prepAreaId, ...(entry.interviewId ? { interviewId: entry.interviewId } : {}), status: 'open' }, id)
+      const created = await ctx.tools.create('plan-items', { intent: entry.intent, ...(entry.instructions ? { instructions: entry.instructions } : {}), prepAreaId: entry.prepAreaId, ...(entry.interviewId ? { interviewId: entry.interviewId } : {}), status: 'open' }, id)
       if (!created.success) return { success: false, error: 'Some intended work may have been saved. Retry Use this plan to finish without duplicating it.' }
     }
   }

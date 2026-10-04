@@ -12,7 +12,7 @@ const planInput = z.object({
   title: text.min(1).max(200), startsAt: datetime.optional(), endsAt: datetime.optional(),
   budgetMinutes: z.number().finite().positive().optional(),
 }).strict().refine((data) => !data.startsAt || !data.endsAt || Date.parse(data.endsAt) > Date.parse(data.startsAt), 'The plan end must follow its start.')
-const itemInput = z.object({ prepAreaId: id, interviewId: id.optional(), intent: text.min(1), planId: id.optional(), requestId: z.uuid().optional() }).strict()
+const itemInput = z.object({ prepAreaId: id, interviewId: id.optional(), intent: text.min(1), instructions: z.string().trim().min(1).max(2000).optional(), planId: id.optional(), requestId: z.uuid().optional() }).strict()
 const membershipInput = z.object({ planId: id, planItemId: id }).strict()
 const startInput = z.object({ planItemId: id, planId: id.optional(), notes: notesText.optional() }).strict()
 const endInput = z.object({
@@ -83,7 +83,7 @@ export const createPlanItem = action(itemInput, async (ctx, data) => {
     if (plan.data.planDate) return failure('This action cannot add work to a daily plan.')
     if (plan.data.closedAt) return failure('Closed plan membership cannot change.')
   }
-  const values = { prepAreaId: data.prepAreaId, ...(data.interviewId ? { interviewId: data.interviewId } : {}), intent: data.intent, status: 'open' }
+  const values = { prepAreaId: data.prepAreaId, ...(data.interviewId ? { interviewId: data.interviewId } : {}), intent: data.intent, ...(data.instructions ? { instructions: data.instructions } : {}), status: 'open' }
   // One form submission uses a UUID across retries. A partial membership write
   // leaves valid open work, and retry cannot create a duplicate or reset status.
   const recordId = data.requestId ? `item-${ctx.userId}-${data.requestId}` : undefined
@@ -92,7 +92,7 @@ export const createPlanItem = action(itemInput, async (ctx, data) => {
   if (existing && !existing.success) return failure('Could not check this submission. Try again.')
   if (existing?.success && existing.data.records.length) {
     const item = existing.data.records[0]!
-    if (item.createdBy !== ctx.userId || item.data.prepAreaId !== data.prepAreaId || item.data.intent !== data.intent || (item.data.interviewId ?? '') !== (data.interviewId ?? '')) {
+    if (item.createdBy !== ctx.userId || item.data.prepAreaId !== data.prepAreaId || item.data.intent !== data.intent || (item.data.instructions ?? null) !== (data.instructions ?? null) || (item.data.interviewId ?? '') !== (data.interviewId ?? '')) {
       return failure('This submission was already used for different intended work. Reload and try again.')
     }
   } else {
@@ -134,7 +134,7 @@ export const startPrepSession = action(startInput, async (ctx, data) => {
   return ctx.tools.create('prep-sessions', {
     planItemId: item.recordId, ...(data.planId ? { planId: data.planId } : {}),
     prepAreaId: item.data.prepAreaId, ...(item.data.interviewId ? { interviewId: item.data.interviewId } : {}),
-    intent: item.data.intent, ...(data.notes !== undefined ? { notes: data.notes } : {}),
+    intent: item.data.intent, ...(item.data.instructions ? { instructions: item.data.instructions } : {}), ...(data.notes !== undefined ? { notes: data.notes } : {}),
     startedAt: new Date().toISOString(), state: 'active', encounteredStuck: false,
   })
 })

@@ -24,6 +24,7 @@ export interface PlanItem {
   prepAreaId: string
   interviewId?: string
   intent: string
+  instructions?: string
   status: 'open' | 'completed'
   completedAt?: string
 }
@@ -33,6 +34,7 @@ export interface PrepSession {
   prepAreaId: string
   interviewId?: string
   intent: string
+  instructions?: string
   startedAt: string
   endedAt?: string
   state: 'active' | 'ended'
@@ -84,6 +86,7 @@ export const prepSessionsSchema: CollectionSchema = {
     { name: 'prepAreaId', storage: 'text', interpretation: { kind: 'reference', targetTable: 'prep-areas', displayColumn: 'name' }, required: true, immutable: true },
     { name: 'interviewId', storage: 'text', interpretation: { kind: 'reference', targetTable: 'interviews', displayColumn: 'company' }, immutable: true },
     { name: 'intent', storage: 'text', interpretation: 'plain', required: true, immutable: true },
+    { name: 'instructions', storage: 'text', interpretation: 'plain', immutable: true },
     { name: 'startedAt', storage: 'text', interpretation: { kind: 'datetime' }, required: true, immutable: true },
     { name: 'endedAt', storage: 'text', interpretation: { kind: 'datetime' } },
     { name: 'state', storage: 'text', interpretation: { kind: 'select', options: ['active', 'ended'] }, required: true, default: 'active' },
@@ -100,7 +103,6 @@ export const prepSessionsSchema: CollectionSchema = {
 
 export const plansSchema: CollectionSchema = {
   name: 'plans',
-  uniqueOn: ['userId', 'planDate'],
   columns: [
     { name: 'planDate', storage: 'text', interpretation: { kind: 'date' }, immutable: true },
     { name: 'userId', storage: 'text', interpretation: 'plain', userBound: true, immutable: true },
@@ -120,6 +122,7 @@ export const planItemsSchema: CollectionSchema = {
     { name: 'prepAreaId', storage: 'text', interpretation: { kind: 'reference', targetTable: 'prep-areas', displayColumn: 'name' }, required: true, immutable: true },
     { name: 'interviewId', storage: 'text', interpretation: { kind: 'reference', targetTable: 'interviews', displayColumn: 'company' }, immutable: true },
     { name: 'intent', storage: 'text', interpretation: 'plain', required: true, immutable: true },
+    { name: 'instructions', storage: 'text', interpretation: 'plain', immutable: true },
     { name: 'status', storage: 'text', interpretation: { kind: 'select', options: ['open', 'completed'] }, required: true, default: 'open' },
     { name: 'completedAt', storage: 'text', interpretation: { kind: 'datetime' } },
   ],

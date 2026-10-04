@@ -1,5 +1,6 @@
 import type { RecordData } from 'deepspace'
 import type { PrepArea, Interview, Plan, PlanItem, PrepSession } from '../schemas/prep-schema'
+import { localPlanDate, planFullyCompleted } from '../lib/plan-date'
 import { intervalFocusMs } from '../lib/focus'
 import type { Recommendation, WorkDisplay } from './planner-contract'
 
@@ -8,9 +9,24 @@ type Result<T> = { success: boolean; data?: { records?: RecordData<T>[]; record?
 export const CONTEXT_LIMITS = { areas: 30, interviews: 30, plans: 20, work: 20, recentIntervals: 30, completed: 10, detailIntervals: 5, previewChars: 300, detailChars: 2000 }
 const recentDays = 14
 
+/** Factual observations of returned ended intervals only; no causal interpretation. */
+export function observedBehavior(intervals: RecordData<PrepSession>[]) {
+  const ended = intervals.filter((row) => row.data.state === 'ended' && !!row.data.endedAt)
+  return {
+    observedAttemptCount: ended.length,
+    observedCompletedCount: ended.filter((row) => row.data.outcome === 'completed').length,
+    observedStoppedCount: ended.filter((row) => row.data.outcome === 'stopped').length,
+    observedSwitchedCount: ended.filter((row) => row.data.outcome === 'switched').length,
+    observedDifficultyCount: ended.filter((row) => !!row.data.encounteredStuck).length,
+    observedDifficultyAndSwitchedCount: ended.filter((row) => !!row.data.encounteredStuck && row.data.outcome === 'switched').length,
+    observedFocusMinutes: ended.reduce((sum, row) => sum + intervalFocusMs(row.data) / 60000, 0),
+    latestObservedAttemptAt: ended.map((row) => row.data.startedAt).filter(Boolean).sort().at(-1) ?? null,
+  }
+}
+
 // This executor is the SDK's verified-user, RBAC-on path. Never replace it
 // with privileged ActionTools, or expose collection/query parameters to the model.
-export function prepReader(executor: ToolExecutor) {
+export function prepReader(executor: ToolExecutor, timeZone = 'UTC') {
   async function get<T>(collection: string, recordId: string): Promise<RecordData<T>> {
     const result = await executor('records.get', { collection, recordId }) as Result<T>
     if (!result.success || !result.data?.record) throw new Error('A referenced preparation record is unavailable.')
@@ -48,15 +64,27 @@ export function prepReader(executor: ToolExecutor) {
       page<PrepSession>('prep-sessions', 3, { state: 'active' }, 'startedAt'),
     ])
     const cutoff = new Date(now - recentDays * 86400000).toISOString()
+    const intervals = recent.records.filter((row) => !!row.data.endedAt && row.data.endedAt >= cutoff && row.data.endedAt <= new Date(now).toISOString())
+    const observationCoverage = { ...recent.coverage, returned: intervals.length, since: cutoff, until: new Date(now).toISOString(), scope: 'caller-wide ended intervals, limited before per-item grouping', lifetime: false }
     const candidates = work.records.filter((row) => !scope.prepAreaIds?.length || scope.prepAreaIds.includes(row.data.prepAreaId))
     const openWork = await Promise.all(candidates.map(async (row) => {
       const status = await execution(row.recordId)
-      return { id: row.recordId, ...row.data, intent: row.data.intent.slice(0, 1000), previouslyStarted: status.previouslyStarted,
+      return { id: row.recordId, ...row.data, intent: row.data.intent.slice(0, 1000), instructions: row.data.instructions?.slice(0, CONTEXT_LIMITS.previewChars), instructionsTruncated: (row.data.instructions?.length ?? 0) > CONTEXT_LIMITS.previewChars, behavioralObservations: observedBehavior(intervals.filter((interval) => interval.data.planItemId === row.recordId)), observationCoverage, previouslyStarted: status.previouslyStarted,
         pendingCompletion: status.pendingCompletion, currentlyFocused: active.records.some((session) => session.data.planItemId === row.recordId),
         planMemberships: plans.records.filter((plan) => plan.data.planItemIds.includes(row.recordId)).map((plan) => ({ id: plan.recordId, title: plan.data.title, closed: !!plan.data.closedAt })),
         latestResumeContext: context(status.latestEnded) }
     }))
-    const intervals = recent.records.filter((row) => !!row.data.endedAt && row.data.endedAt >= cutoff)
+    const today = localPlanDate(timeZone, now)
+    const openPlans = (await Promise.all(plans.records.map(async (row) => {
+      if (row.data.closedAt) return null
+      if (row.data.planDate) {
+        if (row.data.planDate !== today) return null
+        // Resolve all membership through RBAC, independently of bounded openWork.
+        const members = await Promise.all(row.data.planItemIds.slice(0, 50).map((id) => get<PlanItem>('plan-items', id).catch(() => null)))
+        if (row.data.planItemIds.length <= 50 && members.every((item) => !!item) && planFullyCompleted(row, members.filter((item): item is RecordData<PlanItem> => !!item))) return null
+      }
+      return { id: row.recordId, title: row.data.title, startsAt: row.data.startsAt, endsAt: row.data.endsAt, budgetMinutes: row.data.budgetMinutes, planDate: row.data.planDate, planItemIds: row.data.planItemIds.slice(0, 50), membershipTruncated: row.data.planItemIds.length > 50 }
+    }))).filter((row) => row !== null)
     const coverage = { areas: areas.coverage, interviews: interviews.coverage, plans: plans.coverage, openWork: work.coverage, completed: completed.coverage, recentIntervals: { ...recent.coverage, returned: intervals.length, since: cutoff, until: new Date(now).toISOString() }, active: active.coverage }
     const notices = Object.entries(coverage).filter(([, entry]) => entry.truncated).map(([key]) => `${key}: only a bounded subset was available.`)
     notices.push(`Focus history covers at most ${CONTEXT_LIMITS.recentIntervals} ended intervals from the last ${recentDays} days; it is not lifetime history.`, 'Plan memberships are limited to the returned Plans. Interview candidates are limited to the most recently created records. Notes and resume-context previews are bounded.')
@@ -64,10 +92,10 @@ export function prepReader(executor: ToolExecutor) {
       asOf: new Date(now).toISOString(),
       prepAreas: (scopedAreas.length ? scopedAreas : areas.records).map((row) => ({ id: row.recordId, name: row.data.name, notesPreview: row.data.notes?.slice(0, CONTEXT_LIMITS.previewChars) })),
       interviews: [...new Map([...interviews.records.filter((row) => !!row.data.scheduledDate && row.data.scheduledDate >= new Date(now).toISOString().slice(0, 10)), ...(selectedInterview ? [selectedInterview] : [])].map((row) => [row.recordId, row])).values()].map((row) => ({ id: row.recordId, ...row.data, notes: row.data.notes?.slice(0, CONTEXT_LIMITS.previewChars) })),
-      openPlans: plans.records.filter((row) => !row.data.closedAt).map((row) => ({ id: row.recordId, title: row.data.title, startsAt: row.data.startsAt, endsAt: row.data.endsAt, budgetMinutes: row.data.budgetMinutes, planDate: row.data.planDate, planItemIds: row.data.planItemIds.slice(0, 50), membershipTruncated: row.data.planItemIds.length > 50 })),
+      openPlans,
       openWork,
       currentFocus: active.records.map((row) => ({ id: row.recordId, planItemId: row.data.planItemId, planId: row.data.planId, intent: row.data.intent.slice(0, 1000), startedAt: row.data.startedAt })),
-      recentlyCompleted: completed.records.filter((row) => !!row.data.completedAt && row.data.completedAt >= cutoff).map((row) => ({ id: row.recordId, ...row.data, intent: row.data.intent.slice(0, 1000) })),
+      recentlyCompleted: completed.records.filter((row) => !!row.data.completedAt && row.data.completedAt >= cutoff).map((row) => ({ id: row.recordId, ...row.data, intent: row.data.intent.slice(0, 1000), instructions: row.data.instructions?.slice(0, CONTEXT_LIMITS.previewChars) })),
       recentFocus: intervals.map((row) => ({ planItemId: row.data.planItemId, prepAreaId: row.data.prepAreaId, endedAt: row.data.endedAt, outcome: row.data.outcome, encounteredDifficulty: !!row.data.encounteredStuck, focusMinutes: intervalFocusMs(row.data) / 60000 })),
       coverage, coverageNotices: notices,
     }
@@ -75,7 +103,7 @@ export function prepReader(executor: ToolExecutor) {
   async function workContext(planItemId: string) {
     const item = await get<PlanItem>('plan-items', planItemId)
     const [status, history] = await Promise.all([execution(planItemId), page<PrepSession>('prep-sessions', CONTEXT_LIMITS.detailIntervals, { planItemId, state: 'ended' }, 'endedAt')])
-    return { id: item.recordId, ...item.data, ...status, latestEnded: undefined, latestResumeContext: context(status.latestEnded, CONTEXT_LIMITS.detailChars),
+    return { id: item.recordId, ...item.data, instructions: item.data.instructions?.slice(0, CONTEXT_LIMITS.detailChars), instructionsTruncated: (item.data.instructions?.length ?? 0) > CONTEXT_LIMITS.detailChars, behavioralObservations: observedBehavior(history.records), observationCoverage: { ...history.coverage, scope: 'latest ended intervals for this item, any age', since: null, oldestReturnedEndedAt: history.records.at(-1)?.data.endedAt ?? null, newestReturnedEndedAt: history.records[0]?.data.endedAt ?? null, lifetime: false }, ...status, latestEnded: undefined, latestResumeContext: context(status.latestEnded, CONTEXT_LIMITS.detailChars),
       recentIntervals: history.records.map((row) => ({ id: row.recordId, startedAt: row.data.startedAt, endedAt: row.data.endedAt, outcome: row.data.outcome, encounteredDifficulty: !!row.data.encounteredStuck, focusMinutes: intervalFocusMs(row.data) / 60000, notes: row.data.notes?.slice(0, CONTEXT_LIMITS.detailChars), notesTruncated: (row.data.notes?.length ?? 0) > CONTEXT_LIMITS.detailChars })), coverage: history.coverage }
   }
   async function enrich(proposal: Recommendation): Promise<WorkDisplay[]> {
@@ -88,7 +116,7 @@ export function prepReader(executor: ToolExecutor) {
       const interview = work.interviewId ? await get<Interview>('interviews', work.interviewId) : null
       const status = existing ? await execution(existing.recordId) : null
       if (status?.pendingCompletion) throw new Error('Suggested work needs completion reconciliation. Please generate again.')
-      return { intent: work.intent, prepAreaId: area.recordId, prepAreaName: area.data.name, ...(interview ? { interviewId: interview.recordId, interviewCompany: interview.data.company } : {}), previouslyStarted: status?.previouslyStarted ?? false }
+      return { intent: work.intent, ...(work.instructions ? { instructions: work.instructions } : {}), prepAreaId: area.recordId, prepAreaName: area.data.name, ...(interview ? { interviewId: interview.recordId, interviewCompany: interview.data.company } : {}), previouslyStarted: status?.previouslyStarted ?? false }
     }))
   }
   return { snapshot, workContext, enrich }

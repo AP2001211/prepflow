@@ -340,6 +340,21 @@ describe('daily plan lifecycle', () => {
     const data = input(); data.recommendation.items[0]!.existingPlanItemId = 'bob-item'
     expect((await f.call('acceptPrepPlan', data, 'bob')).success).toBe(true)
   })
+  it('never recovers an undated record for a dated submission or downgrades a dated retry to generic', async () => {
+    const f = fixture()
+    const data = input()
+    const id = `suggested-plan-alice-${data.requestId}`
+    f.put('plans', id, { title: data.recommendation.title, budgetMinutes: data.availableMinutes, planItemIds: ['item'] })
+    expect((await f.call('acceptPrepPlan', data)).success).toBe(false)
+    expect(f.row('plans', id)?.data.planDate).toBeUndefined()
+    expect(f.create).not.toHaveBeenCalled()
+    const dated = fixture()
+    expect((await dated.call('acceptPrepPlan', data)).success).toBe(true)
+    const { daily: _daily, ...generic } = data
+    void _daily
+    expect((await dated.call('acceptPrepPlan', generic)).success).toBe(false)
+    expect(dated.row('plans', id)?.data.planDate).toBe(data.daily.planDate)
+  })
   it('rejects invalid dates, zones, stale daily context and changed retry date before writes', async () => {
     const f = fixture()
     for (const value of [{ planDate: '2026-02-30', timeZone: 'UTC' }, { planDate: daily().planDate, timeZone: 'Not/AZone' }, { planDate: '2000-01-01', timeZone: 'UTC' }]) expect((await f.call('acceptPrepPlan', { ...input(), daily: value })).success).toBe(false)
@@ -392,4 +407,73 @@ it('autosaves owned active notes, preserves final notes, and starts resumed note
   const resumed = await f.start()
   expect(f.row('prep-sessions', resumed)?.data.notes).toBeUndefined()
   expect(f.row('prep-sessions', sessionId)?.data.notes).toBe('final notebook')
+})
+
+it('snapshots instructions on start/resume without populating notebook or checkpoint', async () => {
+  const f = fixture()
+  f.row('plan-items', 'item')!.data.instructions = 'Explain edge cases'
+  const first = await f.start()
+  expect(f.row('prep-sessions', first)?.data).toMatchObject({ instructions: 'Explain edge cases' })
+  await f.stop(first, 'stopped', { notes: 'Working notes', leftOff: 'Checkpoint' })
+  const resumed = await f.start()
+  expect(resumed).not.toBe(first)
+  const data = f.row('prep-sessions', resumed)!.data
+  expect(data.instructions).toBe('Explain edge cases')
+  for (const field of ['notes', 'leftOff', 'nextStep']) expect(data[field]).toBeUndefined()
+})
+it.each([false, true])('acceptance retry compares instructions after partial/full persistence (%s)', async (partial) => {
+  const f = fixture()
+  const input = { requestId: '00000000-0000-4000-8000-000000000099', availableMinutes: 30, recommendation: { title: 'Practice', rationale: 'Interview', items: [{ kind: 'new', prepAreaId: 'area', intent: 'Course Schedule II', instructions: 'Explain edge cases', estimatedMinutes: 30, reason: 'Practice' }] } }
+  const original = f.create.getMockImplementation()!
+  let fail = partial
+  f.create.mockImplementation(async (collection, data, id) => {
+    if (collection === 'plans' && fail) { fail = false; throw new Error('Unavailable') }
+    return original(collection, data, id)
+  })
+  expect((await f.call('acceptPrepPlan', input)).success).toBe(!partial)
+  const id = 'suggested-plan-alice-00000000-0000-4000-8000-000000000099-item-0'
+  expect(f.row('plan-items', id)?.data.instructions).toBe('Explain edge cases')
+  const changed = structuredClone(input); changed.recommendation.items[0]!.instructions = 'Different instructions'
+  expect((await f.call('acceptPrepPlan', changed)).success).toBe(false)
+  expect((await f.call('acceptPrepPlan', input)).success).toBe(true)
+  expect(f.create.mock.calls.filter(([collection]) => collection === 'plan-items')).toHaveLength(1)
+})
+
+describe('sequential daily Plans', () => {
+  const input = (id: string, item = 'item') => ({ requestId: id, availableMinutes: 30, daily: { planDate: localPlanDate('UTC'), timeZone: 'UTC' }, recommendation: { title: 'Today', rationale: 'Focus', items: [{ kind: 'existing', existingPlanItemId: item, estimatedMinutes: 30, reason: 'Continue' }] } })
+  const first = '00000000-0000-4000-8000-000000000101'
+  const second = '00000000-0000-4000-8000-000000000102'
+  it('allows another after completion without changing the first Plan and recovers its retry', async () => {
+    const f = fixture()
+    expect((await f.call('acceptPrepPlan', input(first))).success).toBe(true)
+    const before = structuredClone(f.row('plans', `suggested-plan-alice-${first}`))
+    const session = await f.start(`suggested-plan-alice-${first}`)
+    expect(f.row('prep-sessions', session)?.data.planId).toBe(`suggested-plan-alice-${first}`)
+    await f.stop(session, 'completed')
+    f.put('plan-items', 'next', { prepAreaId: 'area', intent: 'Next', status: 'open' })
+    expect((await f.call('acceptPrepPlan', input(second, 'next'))).success).toBe(true)
+    expect(f.row('plans', `suggested-plan-alice-${first}`)).toEqual(before)
+    expect((await f.call('acceptPrepPlan', input(first))).success).toBe(true)
+    expect((await f.call('acceptPrepPlan', input('00000000-0000-4000-8000-000000000103', 'next'))).success).toBe(false)
+  })
+  it('past incomplete membership remains reusable', async () => {
+    const f = fixture(); f.put('plans', 'yesterday', { title: 'Past', planDate: '2000-01-01', planItemIds: ['item'] })
+    expect((await f.call('acceptPrepPlan', input(first))).success).toBe(true)
+    expect(f.row('plans', 'yesterday')?.data.planItemIds).toEqual(['item'])
+    expect(f.row('plans', `suggested-plan-alice-${first}`)?.data.planItemIds).toEqual(['item'])
+  })
+  it.each(['missing', 'foreign', 'pending', 'conflict', 'partial-read'])('blocks %s state before writes', async (mode) => {
+    const f = fixture(); f.put('plans', 'today', { title: 'Today', planDate: localPlanDate('UTC'), planItemIds: [mode === 'missing' ? 'missing' : 'item'] })
+    if (mode === 'foreign') f.row('plan-items', 'item')!.createdBy = 'bob'
+    if (mode === 'pending') f.put('prep-sessions', 'pending', { planItemId: 'item', state: 'ended', outcome: 'completed' })
+    if (mode === 'conflict') f.put('plans', 'other', { title: 'Other', planDate: localPlanDate('UTC'), planItemIds: ['item'] })
+    if (mode === 'partial-read') {
+      const original = f.query.getMockImplementation()!
+      f.query.mockImplementation(async (collection, options) => { const result = await original(collection, options); return options.where?.planDate ? { ...result, data: { ...result.data, count: 501 } } : result })
+    }
+    const result = await f.call('acceptPrepPlan', input(first))
+    expect(result.success).toBe(false)
+    if (mode === 'conflict') expect(result).toMatchObject({ code: 'daily_plan_conflict' })
+    expect(f.create).not.toHaveBeenCalled()
+  })
 })

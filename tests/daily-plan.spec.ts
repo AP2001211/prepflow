@@ -225,4 +225,95 @@ test('daily plan application context, uniqueness, shared work, and focus navigat
   if (await bobBuild.count()) expect(await bobAction('acceptPrepPlan', { requestId: crypto.randomUUID(), availableMinutes: 30, daily: day, recommendation: bobProposal })).toMatchObject({ success: true })
   expect(await bobAction('acceptPrepPlan', { requestId: crypto.randomUUID(), availableMinutes: 30, daily: day, recommendation: bobProposal })).toMatchObject({ success: false })
   await expect(bob.page.getByRole('heading', { name: proposal.title, exact: true })).toHaveCount(0)
+  // Authoritative completion releases daily planning while preserving the old Plan.
+  const completionSession = await action('startPrepSession', { planItemId: plannedRequest.planItemId, planId })
+  expect(completionSession.success).toBe(true)
+  expect(await action('endPrepSession', { sessionId: completionSession.data!.recordId, outcome: 'completed', endedAt: new Date().toISOString() })).toMatchObject({ success: true })
+  await alice.page.goto('/home')
+  await expect(today.locator('h2')).toBeVisible()
+  // Previous runs can leave this spec's three-item current Plan. Finish only
+  // its remaining named fixture work before verifying the next daily creation.
+  while (await today.getByRole('button', { name: /^(Start|Resume)$/, exact: true }).count()) {
+    expect(await today.locator('h2').textContent()).toContain('__daily-')
+    await today.getByRole('button', { name: /^(Start|Resume)$/, exact: true }).first().click()
+    await expect(alice.page).toHaveURL(/\/focus$/)
+    await alice.page.getByRole('button', { name: 'Complete', exact: true }).click()
+    await expect(alice.page).toHaveURL(/\/home$/)
+    await expect(alice.page.getByRole('status', { name: 'Work completed' })).toHaveCount(0)
+    await expect(today.locator('h2')).toBeVisible()
+  }
+  await expect(alice.page.getByRole('link', { name: 'Build another plan', exact: true })).toBeVisible()
+  const completedTitle = (await today.locator('h2').textContent())!
+  await alice.page.getByRole('link', { name: 'Build another plan', exact: true }).click()
+  await expect(alice.page).toHaveURL(/\/plans\/suggest\?mode=daily$/)
+  await expect(alice.page.getByRole('button', { name: 'Build my plan', exact: true })).toBeVisible()
+  const nextItem = await action('createPlanItem', { prepAreaId: areaId, intent: `${prefix} Next block` })
+  const nextProposal = { ...proposal, title: `${prefix} Second today`, items: [
+    { ...proposal.items[0], existingPlanItemId: nextItem.data!.recordId, estimatedMinutes: 20 },
+    { kind: 'new', prepAreaId: areaId, intent: `${prefix} Practice grouping`, estimatedMinutes: 20, reason: 'Another focused block' },
+    { kind: 'new', prepAreaId: areaId, intent: `${prefix} Review null handling`, estimatedMinutes: 20, reason: 'Finish with review' },
+  ] }
+  const persistedDates = new Map<string, string | undefined>()
+  alice.page.on('websocket', (socket) => socket.on('framereceived', (event) => {
+    if (typeof event.payload !== 'string') return
+    try {
+      const message = JSON.parse(event.payload) as { type?: string; payload?: { records?: { recordId: string; data: { planDate?: string } }[] } }
+      if (message.type === 'core.query_result') for (const record of message.payload?.records ?? []) persistedDates.set(record.recordId, record.data.planDate)
+    } catch { /* Ignore non-record protocol frames. */ }
+  }))
+  await alice.page.unroute('**/api/ai/prep-plan')
+  await alice.page.route('**/api/ai/prep-plan', (route) => {
+    expect(route.request().postDataJSON()).toMatchObject({ availableMinutes: 60, timeZone: day.timeZone })
+    return route.fulfill({ status: 200, json: { recommendation: nextProposal, availableMinutes: 60, totalMinutes: 60, generatedAt: new Date().toISOString(), readTools: ['get_prep_snapshot'], coverageNotices: [], display: [
+      { intent: `${prefix} Next block`, prepAreaId: areaId, prepAreaName: 'SQL', previouslyStarted: false },
+      { intent: `${prefix} Practice grouping`, prepAreaId: areaId, prepAreaName: 'SQL', previouslyStarted: false },
+      { intent: `${prefix} Review null handling`, prepAreaId: areaId, prepAreaName: 'SQL', previouslyStarted: false },
+    ] } })
+  })
+  await alice.page.getByRole('button', { name: '60 min', exact: true }).click()
+  await alice.page.getByRole('button', { name: 'Build my plan', exact: true }).click()
+  await expect(alice.page.getByRole('region', { name: 'Suggested plan' })).toBeVisible()
+  let nextId = ''
+  const submissions: unknown[] = []
+  await alice.page.route('**/api/actions/acceptPrepPlan', async (route) => {
+    submissions.push(route.request().postDataJSON())
+    expect(route.request().postDataJSON()).toMatchObject({ daily: day, availableMinutes: 60, recommendation: nextProposal })
+    const response = await route.fetch()
+    const result = await response.json() as { success: boolean; data?: { recordId: string } }
+    expect(result.success).toBe(true)
+    nextId = result.data!.recordId
+    if (submissions.length === 1) await route.fulfill({ status: 502, json: { error: 'Fixture: accepted response lost' } })
+    else await route.fulfill({ response })
+  })
+  await alice.page.getByRole('button', { name: 'Use this plan', exact: true }).click()
+  await expect(alice.page.getByRole('alert')).toHaveText('Fixture: accepted response lost')
+  const firstAcceptedId = nextId
+  await alice.page.getByRole('button', { name: 'Use this plan', exact: true }).click()
+  await expect(alice.page).toHaveURL(new RegExp(`/plans/${firstAcceptedId}$`))
+  expect(nextId).toBe(firstAcceptedId)
+  expect(submissions[1]).toEqual(submissions[0])
+  await alice.page.unroute('**/api/actions/acceptPrepPlan')
+  await expect(alice.page.getByText(`Daily Plan · ${day.planDate}`, { exact: true })).toBeVisible()
+  expect(await action('acceptPrepPlan', { requestId: crypto.randomUUID(), availableMinutes: 60, daily: day, recommendation: nextProposal })).toMatchObject({ success: false })
+  await alice.page.goto('/home')
+  await expect(today.getByRole('heading', { name: nextProposal.title, exact: true })).toBeVisible()
+  await expect(alice.page.getByRole('link', { name: 'Build another plan', exact: true })).toHaveCount(0)
+  await expect(today.getByText('0 of 3 complete', { exact: false })).toBeVisible()
+  const earlier = today.locator('.today-completed-earlier')
+  await expect(earlier).toBeVisible()
+  await expect(earlier).not.toHaveAttribute('open', '')
+  await earlier.locator('summary').click()
+  await expect(earlier.getByRole('heading', { name: completedTitle, exact: true })).toBeVisible()
+  await expect(earlier.locator(`a[href="/plans/${planId}"]`)).toBeVisible()
+  await expect.poll(() => persistedDates.get(nextId)).toBe(day.planDate)
+  persistedDates.delete(nextId)
+  await alice.page.reload()
+  await expect(today.getByRole('heading', { name: nextProposal.title, exact: true })).toBeVisible()
+  await expect.poll(() => persistedDates.get(nextId)).toBe(day.planDate)
+  await expect(today.locator('.today-completed-earlier')).toBeVisible()
+  await expect(today.locator('.today-completed-earlier')).not.toHaveAttribute('open', '')
+  await expect(alice.page.getByRole('link', { name: 'Build another plan', exact: true })).toHaveCount(0)
+  await alice.page.goto(`/plans/${planId}`)
+  await expect(alice.page.getByRole('heading', { name: 'Intended Work', exact: true })).toBeVisible()
+
 })

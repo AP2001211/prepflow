@@ -17,10 +17,10 @@ export default function PlanDetailPage() {
   const focus = useFocus()
   const feedback = useSave(focus.ready && plans.status === 'ready')
   const plan = plans.records.find((row) => row.recordId === planId)
-  if (plans.status !== 'ready') return <p className="p-5" role={plans.error ? 'alert' : 'status'}>{plans.error ? 'Could not load this plan.' : 'Loading plan…'}</p>
-  if (!plan) return <div className="p-5"><p role="alert">Plan unavailable.</p><Link to="/plans" className="underline">Back to Plans</Link></div>
+  if (plans.status !== 'ready') return <p className="plans-flow p-5" role={plans.error ? 'alert' : 'status'}>{plans.error ? 'Could not load this plan.' : 'Loading plan…'}</p>
+  if (!plan) return <div className="plans-flow p-5"><p role="alert">Plan unavailable.</p><Link to="/plans" className="underline">Back to Plans</Link></div>
   const candidates = focus.items.records.filter((item) => item.data.status === 'open' && !focus.pendingIds.has(item.recordId) && !plan.data.planItemIds.includes(item.recordId))
-  return <div className="mx-auto max-w-5xl space-y-6 px-5 py-8">
+  return <div className="plans-flow mx-auto max-w-5xl space-y-6 px-5 py-8">
     <Link to="/plans" className="underline">Back to Plans</Link>
     <h1 className="text-3xl font-semibold break-words">{plan.data.title}</h1>
     {plan.data.planDate && <p className="eyebrow">Daily Plan · {plan.data.planDate}</p>}

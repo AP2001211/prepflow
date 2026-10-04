@@ -1,6 +1,31 @@
 import { readFileSync } from 'node:fs'
 import { test, expect } from 'deepspace/testing'
 
+test('Completed earlier today disclosure desktop and mobile', async ({ page }) => {
+  await page.route('**/api/ai/prep-plan', (route) => route.abort())
+  const stylesheet = await page.request.get('/src/styles.css?direct')
+  const origin = new URL(stylesheet.url()).origin
+  const css = await stylesheet.text() + '\n' + await (await page.request.get('/src/themes.css?direct')).text()
+  const html = readFileSync('/tmp/prepflow-completed-earlier.html', 'utf8')
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 })
+    await page.setContent(`<html data-theme="prepflow"><head><base href="${origin}/"><style>${css}</style></head><body>${html}</body></html>`)
+    await expect(page.getByRole('heading', { name: 'Plan 2', exact: true })).toBeVisible()
+    const earlier = page.locator('.today-completed-earlier')
+    await expect(earlier).not.toHaveAttribute('open', '')
+    await expect(earlier.getByRole('heading', { name: 'Plan 1', exact: true })).not.toBeVisible()
+    await earlier.locator('summary').focus()
+    await page.keyboard.press('Enter')
+    await expect(earlier).toHaveAttribute('open', '')
+    await expect(earlier.getByRole('heading', { name: 'Plan 1', exact: true })).toBeVisible()
+    await expect(earlier.getByText('2 of 2 completed · 60 min planned')).toBeVisible()
+    await expect(earlier.getByRole('link')).toHaveAttribute('href', '/plans/1')
+    await expect(page.getByRole('link', { name: 'Build another plan' })).toHaveCount(0)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await page.screenshot({ path: `/tmp/prepflow-completed-earlier-${width}.png`, fullPage: true })
+  }
+})
+
 // Render real Home components from the deterministic unit fixtures, with the
 // real compiled stylesheet. This supplements authenticated interaction tests.
 test('Home composition desktop and mobile fixtures', async ({ page }) => {

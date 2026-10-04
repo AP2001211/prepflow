@@ -43,13 +43,25 @@ test('planner review, retry, canonical display, acceptance and focus (determinis
   const first = await action('startPrepSession', { planItemId: resumedId })
   await action('endPrepSession', { sessionId: first, outcome: 'switched', endedAt: new Date().toISOString(), leftOff: 'Handle null keys', nextStep: 'Try a left join' })
   const unstartedId = await action('createPlanItem', { prepAreaId: areaId, intent: `${prefix} Start windows` })
-  await alice.page.goto('/plans/suggest')
-  await expect(alice.page).toHaveURL(/\/plans\/suggest$/)
+  await alice.page.goto('/plans')
+  await expect(alice.page.getByRole('button', { name: 'Create Plan', exact: true })).toHaveCSS('background-color', 'rgb(35, 107, 101)')
+  await alice.page.screenshot({ path: '/tmp/prepflow-plans-teal-index-desktop.png', fullPage: true })
+  await alice.page.setViewportSize({ width: 390, height: 844 })
+  expect(await alice.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await alice.page.screenshot({ path: '/tmp/prepflow-plans-teal-index-mobile.png', fullPage: true })
+  await alice.page.setViewportSize({ width: 1280, height: 720 })
+  await alice.page.goto('/plans/suggest?mode=generic')
+  await expect(alice.page).toHaveURL(/\/plans\/suggest\?mode=generic$/)
   await alice.page.keyboard.press('Tab')
   await alice.page.getByRole('button', { name: '60 min', exact: true }).focus()
   expect(await alice.page.getByRole('button', { name: '60 min', exact: true }).evaluate((node) => getComputedStyle(node).outlineStyle)).not.toBe('none')
   await alice.page.getByRole('button', { name: '60 min', exact: true }).click()
   await expect(alice.page.getByRole('button', { name: '60 min', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect(alice.page.getByRole('button', { name: '60 min', exact: true })).toHaveCSS('background-color', 'rgb(25, 86, 80)')
+  await alice.page.mouse.move(0, 0)
+  await expect(alice.page.getByRole('button', { name: '60 min', exact: true })).toHaveCSS('background-color', 'rgb(35, 107, 101)')
+  await expect(alice.page.getByRole('button', { name: 'Build my plan', exact: true })).toHaveCSS('background-color', 'rgb(35, 107, 101)')
+  await alice.page.screenshot({ path: '/tmp/prepflow-plans-teal-form-desktop.png', fullPage: true })
   await expect(alice.page.getByLabel('Available minutes', { exact: true })).toHaveCount(0)
   await alice.page.getByLabel('Goal (optional)', { exact: true }).fill('Use SQL work')
   await alice.page.getByRole('button', { name: 'Build my plan', exact: true }).click()
@@ -59,7 +71,7 @@ test('planner review, retry, canonical display, acceptance and focus (determinis
   const recommendation = { title: `${prefix} Suggested prep`, rationale: 'Existing work and one new exercise', items: [
     { kind: 'existing', existingPlanItemId: resumedId, estimatedMinutes: 20, reason: 'Continue the saved work' },
     { kind: 'existing', existingPlanItemId: unstartedId, estimatedMinutes: 20, reason: 'Start intended work' },
-    { kind: 'new', prepAreaId: areaId, intent: `${prefix} New grouping`, estimatedMinutes: 15, reason: 'Practice grouping' },
+    { kind: 'new', prepAreaId: areaId, intent: `${prefix} New grouping`, instructions: 'Explain grouping edge cases', estimatedMinutes: 15, reason: 'Practice grouping' },
   ] }
   await alice.page.route('**/api/ai/prep-plan', async (route) => {
     generationCount++
@@ -67,7 +79,7 @@ test('planner review, retry, canonical display, acceptance and focus (determinis
     await route.fulfill({ status: 200, json: { recommendation, availableMinutes: 60, totalMinutes: 55, generatedAt: new Date().toISOString(), coverageNotices: [], readTools: ['get_prep_snapshot'], display: [
       { intent: `${prefix} Resume joins`, prepAreaId: areaId, prepAreaName: `${prefix} SQL`, previouslyStarted: true },
       { intent: `${prefix} Start windows`, prepAreaId: areaId, prepAreaName: `${prefix} SQL`, previouslyStarted: false },
-      { intent: `${prefix} New grouping`, prepAreaId: areaId, prepAreaName: `${prefix} SQL`, previouslyStarted: false },
+      { intent: `${prefix} New grouping`, instructions: 'Explain grouping edge cases', prepAreaId: areaId, prepAreaName: `${prefix} SQL`, previouslyStarted: false },
     ] } })
   })
   const writes: string[] = []
@@ -75,24 +87,37 @@ test('planner review, retry, canonical display, acceptance and focus (determinis
   await alice.page.getByRole('button', { name: 'Build my plan', exact: true }).click()
   const suggestion = alice.page.getByRole('region', { name: 'Suggested plan' })
   await expect(suggestion).toBeVisible()
+  await expect(suggestion.getByText('Instructions: Explain grouping edge cases', { exact: true })).toBeVisible()
   await expect(suggestion.getByText(`Resume · ${prefix} SQL`, { exact: true })).toBeVisible()
   await expect(suggestion.getByText(`Start · ${prefix} SQL`, { exact: true })).toBeVisible()
   await expect(suggestion.getByText(`New work · ${prefix} SQL`, { exact: true })).toBeVisible()
   await expect(suggestion.getByText('60 minutes available · 55 minutes allocated')).toBeVisible()
   expect(writes).toEqual([])
+  await expect(alice.page.getByRole('button', { name: 'Use this plan', exact: true })).toHaveCSS('background-color', 'rgb(35, 107, 101)')
+  await expect(suggestion.locator('.recommendation-allocation').first()).toHaveCSS('color', 'rgb(35, 107, 101)')
+  await suggestion.screenshot({ path: '/tmp/prepflow-plan-review-desktop.png' })
   // Editing the request form cannot silently change the reviewed plan budget.
   await alice.page.getByRole('button', { name: 'Custom', exact: true }).click()
   await alice.page.getByLabel('Available minutes', { exact: true }).fill('91')
   await alice.page.screenshot({ path: '/tmp/prepflow-planner-1b.png', fullPage: true })
   await alice.page.setViewportSize({ width: 390, height: 844 })
+  await suggestion.screenshot({ path: '/tmp/prepflow-plan-review-mobile.png' })
   await alice.page.screenshot({ path: '/tmp/prepflow-planner-mobile-1b.png', fullPage: true })
   expect(await alice.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   await alice.page.setViewportSize({ width: 1280, height: 720 })
   const accepted = alice.page.waitForRequest('**/api/actions/acceptPrepPlan')
   await alice.page.getByRole('button', { name: 'Use this plan', exact: true }).click()
   expect((await accepted).postDataJSON()).toMatchObject({ availableMinutes: 60, recommendation })
+  expect((await accepted).postDataJSON()).not.toHaveProperty('daily')
   await expect(alice.page).toHaveURL(/\/plans\/suggested-plan-/)
   await expect(alice.page.getByRole('heading', { name: recommendation.title, exact: true })).toBeVisible()
+  await expect(alice.page.getByText(/Daily Plan ·/)).toHaveCount(0)
+  await expect(alice.page.getByRole('button', { name: 'Resume', exact: true }).first()).toHaveCSS('background-color', 'rgb(216, 232, 226)')
+  await alice.page.screenshot({ path: '/tmp/prepflow-plans-teal-detail-desktop.png', fullPage: true })
+  await alice.page.setViewportSize({ width: 390, height: 844 })
+  expect(await alice.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await alice.page.screenshot({ path: '/tmp/prepflow-plans-teal-detail-mobile.png', fullPage: true })
+  await alice.page.setViewportSize({ width: 1280, height: 720 })
   expect(generationCount).toBe(1)
   const planId = new URL(alice.page.url()).pathname.split('/').pop()!
   const row = alice.page.locator('li').filter({ has: alice.page.getByRole('heading', { name: `${prefix} Resume joins`, exact: true }) })

@@ -7,7 +7,7 @@ export const recommendationSchema = z.object({
   rationale: z.string().trim().min(1).max(1000),
   items: z.array(z.discriminatedUnion('kind', [
     z.object({ kind: z.literal('existing'), existingPlanItemId: recordIdSchema, ...allocation }).strict(),
-    z.object({ kind: z.literal('new'), intent: z.string().trim().min(1).max(1000), prepAreaId: recordIdSchema, interviewId: recordIdSchema.nullish(), ...allocation }).strict(),
+    z.object({ kind: z.literal('new'), intent: z.string().trim().min(1).max(200), instructions: z.string().trim().min(1).max(2000).optional(), prepAreaId: recordIdSchema, interviewId: recordIdSchema.nullish(), ...allocation }).strict(),
   ])).min(1).max(5),
 }).strict()
 export const plannerRequestSchema = z.object({
@@ -28,6 +28,7 @@ export function validateRecommendation(value: unknown, availableMinutes: number)
 }
 export interface WorkDisplay {
   intent: string
+  instructions?: string
   prepAreaId: string
   prepAreaName: string
   interviewId?: string
@@ -48,6 +49,6 @@ export interface PlannerResponse {
 export const plannerResponseSchema = z.object({
   recommendation: recommendationSchema, availableMinutes: z.number().int().positive().max(1440),
   totalMinutes: z.number().int().positive().max(1440), generatedAt: z.string(),
-  display: z.array(z.object({ intent: z.string(), prepAreaId: recordIdSchema, prepAreaName: z.string(), interviewId: recordIdSchema.optional(), interviewCompany: z.string().optional(), previouslyStarted: z.boolean() }).strict()).min(1).max(5),
+  display: z.array(z.object({ intent: z.string(), instructions: z.string().max(2000).optional(), prepAreaId: recordIdSchema, prepAreaName: z.string(), interviewId: recordIdSchema.optional(), interviewCompany: z.string().optional(), previouslyStarted: z.boolean() }).strict()).min(1).max(5),
   coverageNotices: z.array(z.string()), readTools: z.array(z.enum(['get_prep_snapshot', 'get_work_context'])),
 }).strict().refine((data) => data.display.length === data.recommendation.items.length && data.totalMinutes === data.recommendation.items.reduce((sum, item) => sum + item.estimatedMinutes, 0) && data.totalMinutes <= data.availableMinutes, 'Invalid planner response.')

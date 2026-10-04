@@ -77,6 +77,38 @@
   --shadow-card-hover: 0 8px 28px rgba(40, 42, 54, 0.06);
 }
 
+/* Plans inherit the current palette without changing other application pages. */
+[data-theme="prepflow"] .plans-flow {
+  --color-background: #FDF8EA;
+  --color-foreground: #202826;
+  --color-card: var(--color-surface-raised-warm);
+  --color-card-foreground: #202826;
+  --color-primary: #236B65;
+  --color-primary-control: #236B65;
+  --color-primary-hover: #195650;
+  --color-primary-foreground: #FDF8EA;
+  --color-secondary: #D8E8E2;
+  --color-secondary-foreground: #202826;
+  --color-muted-foreground: #65706B;
+  --color-accent: #D8E8E2;
+  --color-accent-foreground: #202826;
+  --color-ring: #236B65;
+}
+[data-theme="prepflow"] .plans-flow { color: var(--color-foreground); }
+[data-theme="prepflow"] .plans-flow [data-slot="button"].bg-primary:hover:not(:disabled),
+[data-theme="prepflow"] .plans-flow .build-action:hover:not(:disabled),
+[data-theme="prepflow"] .plans-flow .duration-options button[aria-pressed="true"]:hover:not(:disabled) {
+  background-color: var(--color-primary-hover);
+}
+[data-theme="prepflow"] .plans-flow .duration-options button:focus-visible,
+[data-theme="prepflow"] .plans-flow .build-action:focus-visible {
+  outline-color: var(--color-ring);
+}
+[data-theme="prepflow"] .plans-flow a:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 3px;
+}
+
 /* Portaled dialogs share PrepFlow's warm surfaces and current teal controls. */
 [data-theme="prepflow"] [data-slot="dialog-content"] {
   --color-background: #FDF8EA;

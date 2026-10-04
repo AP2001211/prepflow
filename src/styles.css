@@ -350,11 +350,44 @@ main:has(.focus-workspace) {
   .duration-options { @apply flex flex-wrap gap-2; }
   .duration-options button { @apply min-h-11 rounded-xl border border-input bg-card px-4 py-3 font-medium text-foreground focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-foreground disabled:opacity-60; }
   .duration-options button[aria-pressed="true"] { @apply border-primary bg-primary text-primary-foreground; }
-  .planner-review { @apply space-y-5 rounded-2xl bg-card p-5 sm:p-8; }
-  .recommendation-list { @apply space-y-0; }
-  .recommendation-list > li { @apply flex gap-4 border-t border-border py-5; }
-  .recommendation-list > li > div { @apply min-w-0 space-y-2; }
-  .recommendation-number { @apply flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-background font-semibold; }
+  .planner-review, .planner-review-decision {
+    --color-primary: #236B65;
+    --color-primary-control: #236B65;
+    --color-primary-hover: #195650;
+    --color-primary-foreground: #FDF8EA;
+    --color-foreground: #202826;
+    --color-muted-foreground: #65706B;
+    --color-accent: #D8E8E2;
+    --color-ring: #236B65;
+  }
+  .planner-review-decision [data-slot="button"].bg-primary:hover:not(:disabled) { background-color: var(--color-primary-hover); }
+  .planner-review { display: grid; gap: 24px; min-width: 0; }
+  .planner-review-heading { display: grid; gap: 10px; min-width: 0; }
+  .planner-review-heading .display-title { font-size: clamp(1.6rem, 4vw, 2rem); line-height: 1.2; overflow-wrap: anywhere; }
+  .planner-review-rationale { color: var(--color-muted-foreground); line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .planner-review-total { font-size: 14px; font-weight: 600; color: var(--color-primary); margin-top: 4px; }
+  .planner-review-help { font-size: 13px; line-height: 1.5; color: var(--color-muted-foreground); }
+  .recommendation-list { display: grid; gap: 14px; }
+  .recommendation-card { display: flex; align-items: flex-start; gap: 14px; padding: 20px; background: var(--color-surface-raised-warm); border: 1px solid var(--color-border); border-radius: 16px; min-width: 0; }
+  .recommendation-number { display: flex; width: 28px; height: 28px; flex-shrink: 0; align-items: center; justify-content: center; border-radius: 8px; background: var(--color-accent); color: var(--color-primary); font-size: 13px; font-weight: 600; }
+  .recommendation-content { flex: 1; min-width: 0; }
+  .recommendation-heading { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; }
+  .recommendation-heading h3 { flex: 1 1 180px; min-width: 0; font-size: 18px; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
+  .recommendation-allocation { flex-shrink: 0; color: var(--color-primary); font-size: 14px; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .recommendation-metadata { margin-top: 5px; font-size: 13px; color: var(--color-muted-foreground); overflow-wrap: anywhere; }
+  .recommendation-instructions { margin-top: 14px; font-size: 14px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .recommendation-reason { margin-top: 14px; color: var(--color-muted-foreground); font-size: 13px; line-height: 1.55; }
+  .recommendation-reason h4 { font-size: 12px; font-weight: 500; margin-bottom: 4px; }
+  .recommendation-reason p { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .planner-review-coverage { font-size: 13px; line-height: 1.5; color: var(--color-muted-foreground); }
+  .planner-review-coverage summary { cursor: pointer; width: fit-content; border-radius: 4px; }
+  .planner-review-coverage summary:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 4px; }
+  .planner-review-coverage ul { margin-top: 10px; padding-left: 18px; list-style: disc; overflow-wrap: anywhere; }
+  .planner-review-decision { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; padding-top: 20px; border-top: 1px solid var(--color-border); }
+  .planner-review-decision > div { flex: 1 1 240px; min-width: 0; }
+  .planner-decision-total { font-size: 18px; font-weight: 600; margin-bottom: 6px; font-variant-numeric: tabular-nums; }
+  @media (max-width: 480px) { .recommendation-card { padding: 16px; gap: 10px; } .recommendation-heading h3 { flex-basis: 100%; font-size: 17px; } .planner-review-decision > button { width: 100%; } }
+
 }
 @layer components {
   .build-action { font-size: 20px; font-weight: 700; }
@@ -680,6 +713,17 @@ main:has(.focus-workspace) {
 .home-layout .home-secondary-rail { gap: 14px; }
 .home-layout .today-plan-subordinate .display-title,
 .home-layout .plan-invitation-subordinate .display-title { font-size: 22px; }
+
+/* Same-day completed intentions stay subordinate to the primary Today surface. */
+.home-layout .today-completed-earlier { border-top: 1px solid var(--color-border); padding-top: 16px; font-size: 13px; color: var(--color-muted-foreground); }
+.home-layout .today-completed-earlier summary { cursor: pointer; padding-block: 8px; overflow-wrap: anywhere; }
+.home-layout .today-completed-earlier summary:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 3px; border-radius: 4px; }
+.home-layout .today-completed-earlier ul { display: grid; gap: 14px; margin-top: 12px; }
+.home-layout .today-completed-earlier li { display: flex; align-items: flex-start; gap: 10px; }
+.home-layout .today-completed-earlier h3 { color: var(--color-foreground); font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
+.home-layout .today-completed-earlier p { margin-block: 4px; }
+.home-layout .today-completed-earlier .quiet-link { font-size: 12px; }
+.home-layout .today-completed-check { color: var(--color-primary); }
 
 /* Desktop fold cue: recover empty invitation whitespace, not global scale. */
 @media (min-width: 1100px) {

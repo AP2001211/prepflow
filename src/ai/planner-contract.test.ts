@@ -29,3 +29,10 @@ describe('Strict planner recommendation contract', () => {
     expect(plannerRequestSchema.safeParse({ availableMinutes: 30, timeZone: 'Invalid/Zone' }).success).toBe(false)
   })
 })
+
+it('validates concise new identity and bounded instructions without accepting existing overrides', () => {
+  const item = { kind: 'new', intent: 'Course Schedule II — Live Coding', instructions: 'Explain edge cases.', prepAreaId: 'area', estimatedMinutes: 15, reason: 'Interview practice' }
+  expect(validateRecommendation({ ...existingProposal, items: [item] }, 30).items[0]).toEqual(item)
+  for (const invalid of [{ ...item, intent: 'x'.repeat(201) }, { ...item, instructions: 'x'.repeat(2001) }, { ...existingProposal.items[0], instructions: 'Forged' }]) expect(recommendationSchema.safeParse({ ...existingProposal, items: [invalid] }).success).toBe(false)
+  expect(() => validateRecommendation({ ...existingProposal, items: [item, { ...item, instructions: 'Different approach' }] }, 30)).toThrow('repeats new')
+})

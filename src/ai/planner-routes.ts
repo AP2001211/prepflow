@@ -28,7 +28,7 @@ export function registerPlannerRoutes(app: Hono<AppContext>, resolveAccess: Reso
     if (!jwt) return c.json({ error: 'Please sign in.' }, 401)
     const signal = AbortSignal.any([c.req.raw.signal, AbortSignal.timeout(90000)])
     const executor = createUserToolExecutor(c.env, access.auth.userId, signal)
-    const reader = prepReader(executor)
+    const reader = prepReader(executor, input.data.timeZone ?? 'UTC')
     const readTools: string[] = []
     let snapshotSucceeded = false
     let coverageNotices: string[] = []
@@ -40,7 +40,7 @@ export function registerPlannerRoutes(app: Hono<AppContext>, resolveAccess: Reso
       if (!selection) throw new Error('The application model is unavailable.')
       mark('model_provider_resolved', { provider: selection.provider, model: selection.modelId, availableMinutes: input.data.availableMinutes })
       const provider = createDeepSpaceAI(c.env, selection.provider, { authToken: jwt })
-      const tools = toolsFactory(executor)
+      const tools = toolsFactory(executor, input.data.timeZone ?? 'UTC')
       // We own the short loop when using generateText directly. Bound tool
       // executions as well as model steps (one step may call tools in parallel).
       const detailExecute = tools.get_work_context.execute

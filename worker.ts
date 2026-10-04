@@ -46,6 +46,9 @@ export const __DO_MANIFEST__ = [
 export class AppRecordRoom extends RecordRoom<Env> {
   constructor(state: DurableObjectState, env: Env) {
     super(state, env, schemas, { ownerUserId: env.OWNER_USER_ID })
+    // Remove the former Plan(userId, planDate) uniqueOn index; keep this step
+    // because DeepSpace does not reconcile removed unique indexes.
+    this.sql.exec('DROP INDEX IF EXISTS "uniq_c_plans_userId_planDate";')
   }
 }
 

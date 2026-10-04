@@ -1,5 +1,5 @@
 import type { RecordData } from 'deepspace'
-import type { Plan } from '../schemas/prep-schema'
+import type { Plan, PlanItem } from '../schemas/prep-schema'
 
 export function validPlanDate(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(`${value}T00:00:00Z`)) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value
@@ -14,4 +14,26 @@ export function browserDay() {
 }
 export function todayPlans(plans: RecordData<Plan>[], date: string) {
   return plans.filter((plan) => plan.data.planDate === date)
+}
+
+/** Unresolved or foreign membership can never prove completion. */
+export function planFullyCompleted(plan: RecordData<Plan>, items: RecordData<PlanItem>[]) {
+  const byId = new Map(items.map((item) => [item.recordId, item]))
+  return plan.data.planItemIds.every((id) => {
+    const item = byId.get(id)
+    return !!item && item.createdBy === plan.createdBy && item.data.status === 'completed'
+  })
+}
+
+export function dailyPlanState(plans: RecordData<Plan>[], items: RecordData<PlanItem>[], date: string, ready = true) {
+  const matches = todayPlans(plans, date).sort((a, b) =>
+    (b.createdAt ?? '').localeCompare(a.createdAt ?? '') || b.recordId.localeCompare(a.recordId))
+  const incomplete = matches.filter((plan) => !planFullyCompleted(plan, items))
+  const conflict = ready && incomplete.length > 1
+  const displayPlan = ready && !conflict ? incomplete[0] ?? matches[0] : undefined
+  const completedPlans = ready ? matches.filter((plan) => planFullyCompleted(plan, items)) : []
+  const completedEarlierPlans = completedPlans.filter((plan) => plan.recordId !== displayPlan?.recordId)
+  return { matches, incomplete, conflict, planningAllowed: ready && incomplete.length === 0,
+    currentPlan: ready && incomplete.length === 1 ? incomplete[0] : undefined,
+    displayPlan, completedPlans, completedEarlierPlans }
 }

@@ -34,6 +34,8 @@ describe('Bounded caller-scoped planner reads', () => {
     expect(detail.recentIntervals).toHaveLength(5)
     expect(detail.recentIntervals[0]?.notes).toHaveLength(CONTEXT_LIMITS.detailChars)
     expect(detail.coverage.truncated).toBe(true)
+    expect(detail.behavioralObservations).toMatchObject({ observedAttemptCount: 5, observedSwitchedCount: 5, observedDifficultyAndSwitchedCount: 5, observedFocusMinutes: 50 })
+    expect(detail.observationCoverage).toMatchObject({ truncated: true, lifetime: false })
   })
   it('selects the latest ended interval before looking for context; never falls back', async () => {
     const f = contextFixture()
@@ -74,4 +76,45 @@ describe('Bounded caller-scoped planner reads', () => {
     item.data.status = 'completed'
     await expect(reader.enrich(existingProposal)).rejects.toThrow('no longer open')
   })
+})
+
+it('computes factual bounded observations without counting active or older history', async () => {
+  const f = contextFixture()
+  const base = { planItemId: 'item', prepAreaId: 'area', intent: 'Window functions', startedAt: '2026-10-01T12:00:00Z', endedAt: '2026-10-01T12:10:00Z', state: 'ended', encounteredStuck: false }
+  f.add('prep-sessions', 'a', { ...base, outcome: 'completed' })
+  f.add('prep-sessions', 'b', { ...base, outcome: 'stopped', encounteredStuck: true })
+  f.add('prep-sessions', 'c', { ...base, outcome: 'switched', encounteredStuck: true })
+  f.add('prep-sessions', 'old', { ...base, startedAt: '2020-01-01T12:00:00Z', endedAt: '2020-01-01T12:10:00Z', outcome: 'stopped' })
+  f.add('prep-sessions', 'active', { ...base, state: 'active', endedAt: undefined })
+  const snapshot = await prepReader(f.executor).snapshot({}, now)
+  expect(snapshot.openWork[0]?.behavioralObservations).toEqual({ observedAttemptCount: 3, observedCompletedCount: 1, observedStoppedCount: 1, observedSwitchedCount: 1, observedDifficultyCount: 2, observedDifficultyAndSwitchedCount: 1, observedFocusMinutes: 30, latestObservedAttemptAt: base.startedAt })
+  expect(snapshot.openWork[0]?.observationCoverage).toMatchObject({ lifetime: false, limit: 30, truncated: false, until: new Date(now).toISOString() })
+  const detail = await prepReader(f.executor).workContext('item')
+  expect(detail.behavioralObservations.observedAttemptCount).toBe(4)
+  expect(detail.observationCoverage).toMatchObject({ lifetime: false, limit: 5, since: null })
+})
+it('bounds instruction previews and enriches existing instructions canonically', async () => {
+  const f = contextFixture()
+  const item = f.tables.get('plan-items')!.find((row) => row.recordId === 'item')!
+  item.data.instructions = 'x'.repeat(2000)
+  const reader = prepReader(f.executor)
+  expect((await reader.snapshot({}, now)).openWork[0]?.instructions).toHaveLength(300)
+  expect((await reader.workContext('item')).instructions).toHaveLength(2000)
+  expect((await reader.enrich(existingProposal))[0]?.instructions).toBe(item.data.instructions)
+  expect(f.executor.mock.calls.every(([name]) => name === 'records.get' || name === 'records.query')).toBe(true)
+})
+
+it('separates historical memberships from local-day unresolved daily context', async () => {
+  const f = contextFixture()
+  f.add('plan-items', 'done', { prepAreaId: 'area', intent: 'Done', status: 'completed' })
+  f.add('plans', 'past-daily', { title: 'Past', planDate: '2026-10-01', planItemIds: ['item'] })
+  f.add('plans', 'completed-daily', { title: 'Completed today', planDate: '2026-10-02', planItemIds: ['done'] })
+  f.add('plans', 'current-daily', { title: 'Current', planDate: '2026-10-02', planItemIds: ['item'] })
+  f.add('plans', 'missing-daily', { title: 'Unresolved', planDate: '2026-10-02', planItemIds: ['missing'] })
+  const reader = prepReader(f.executor, 'America/Los_Angeles')
+  const snapshot = await reader.snapshot({}, Date.parse('2026-10-03T02:00:00Z'))
+  expect(snapshot.openPlans.map((p) => p.id)).toEqual(expect.arrayContaining(['later', 'current-daily', 'missing-daily']))
+  expect(snapshot.openPlans.map((p) => p.id)).not.toEqual(expect.arrayContaining(['past-daily']))
+  expect(snapshot.openPlans.map((p) => p.id)).not.toEqual(expect.arrayContaining(['completed-daily']))
+  expect(snapshot.openWork[0]?.planMemberships.map((p) => p.id)).toContain('past-daily')
 })

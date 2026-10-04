@@ -24,3 +24,9 @@ describe('planner-only diagnostics', () => {
     expect(JSON.stringify(result)).not.toContain('PRIVATE')
   })
 })
+
+it('never retains rejected instruction content in schema diagnostics', () => {
+  const result = plannerErrorDiagnostics({ issues: [{ path: ['items', 0, 'instructions'], code: 'too_big', message: 'Too big: expected string to have <=2000 characters', input: 'PRIVATE EXECUTION BRIEF' }], output: { instructions: 'PRIVATE EXECUTION BRIEF' } })
+  expect(result.issues[0]?.path).toBe('items.0.instructions')
+  expect(JSON.stringify(result)).not.toContain('PRIVATE EXECUTION BRIEF')
+})

@@ -49,7 +49,7 @@ describe('Relationship fields cannot bypass validation', () => {
 
 describe('Phase 2 schemas', () => {
   it('makes semantic item identity and session snapshots immutable', () => {
-    for (const field of ['prepAreaId', 'interviewId', 'intent']) {
+    for (const field of ['prepAreaId', 'interviewId', 'intent', 'instructions']) {
       expect(planItemsSchema.columns.find((column) => column.name === field)?.immutable).toBe(true)
       expect(prepSessionsSchema.columns.find((column) => column.name === field)?.immutable).toBe(true)
     }
@@ -66,11 +66,18 @@ describe('Phase 2 schemas', () => {
 })
 
 describe('daily plan schema', () => {
-  it('keeps date optional, immutable, without a default and binds uniqueness to caller', () => {
+  it('keeps date optional, immutable, without a default and preserves caller binding without date uniqueness', () => {
     expect(plansSchema.columns.find((column) => column.name === 'planDate')).toEqual({ name: 'planDate', storage: 'text', interpretation: { kind: 'date' }, immutable: true })
     expect(plansSchema.columns.find((column) => column.name === 'userId')).toMatchObject({ userBound: true, immutable: true })
-    expect(plansSchema.uniqueOn).toEqual(['userId', 'planDate'])
+    expect(plansSchema.uniqueOn).toBeUndefined()
     expect(plansSchema.ownerField).toBeUndefined()
     expect(lintSchema(plansSchema)).toEqual([])
   })
+})
+
+it('keeps instructions optional without a default and blocks direct snapshot edits', () => {
+  for (const schema of [planItemsSchema, prepSessionsSchema]) {
+    expect(schema.columns.find((column) => column.name === 'instructions')).toEqual({ name: 'instructions', storage: 'text', interpretation: 'plain', immutable: true })
+    expect(checkFieldPermissions(schema, 'member', { instructions: 'forged' })).not.toBeNull()
+  }
 })

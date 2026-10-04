@@ -34,6 +34,7 @@ export function FocusAttempt({ record, area, interview, disabled, predecessor, n
         <div className="focus-time"><p className="focus-elapsed" aria-label="Focus duration">{formatFocus(elapsed)}</p><p className="focus-time-label">Time in focus</p></div>
         <aside className="focus-session-context" aria-label={predecessor?.data.leftOff || predecessor?.data.nextStep ? 'Context from your previous attempt' : 'Session Context'}>
           <div className="focus-context-heading"><h4>Session Context</h4><FileText size={20} aria-hidden="true" /></div>
+          {record.data.instructions && <div><h5>Instructions</h5><p className="whitespace-pre-wrap break-words">{record.data.instructions}</p></div>}
           {predecessor?.data.leftOff && <div><h5>Last time</h5><p className="context-left-off">Left off: {predecessor.data.leftOff}</p></div>}
           {predecessor?.data.nextStep && <div><h5>Next step</h5><p>Next: {predecessor.data.nextStep}</p></div>}
           {!(predecessor?.data.leftOff || predecessor?.data.nextStep) && <p className="focus-context-empty">No saved context from your previous attempt.</p>}

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { RecordData } from 'deepspace'
 import type { Plan } from '../schemas/prep-schema'
-import { localPlanDate, todayPlans, validPlanDate } from './plan-date'
+import { localPlanDate, todayPlans, validPlanDate, dailyPlanState } from './plan-date'
 const row = (id: string, data: Plan): RecordData<Plan> => ({ recordId: id, data, createdBy: 'alice', createdAt: '2026-10-02T12:00:00Z', updatedAt: '2026-10-02T12:00:00Z' })
 describe('explicit local daily plans', () => {
   it('selects only exact dates, including completed/closed plans, never general or historical plans', () => {
@@ -21,5 +21,48 @@ describe('explicit local daily plans', () => {
     expect(validPlanDate('2028-02-29')).toBe(true)
     for (const date of ['2026-02-29', '2026-02-30', '2026-13-01', '', '10/02/2026']) expect(validPlanDate(date)).toBe(false)
     expect(() => localPlanDate('Invalid/Zone')).toThrow()
+  })
+})
+
+describe('completion-aware daily selection', () => {
+  const item = (id: string, status: 'open' | 'completed') => ({ recordId: id, createdBy: 'alice', createdAt: '', updatedAt: '', data: { intent: id, prepAreaId: 'area', status } })
+  const plan = (id: string, ids: string[], date = '2026-10-02') => row(id, { title: id, planDate: date, planItemIds: ids })
+  it('past unfinished work never blocks and completed Plans allow another', () => {
+    expect(dailyPlanState([plan('past', ['open'], '2026-10-01')], [item('open', 'open')], '2026-10-02').planningAllowed).toBe(true)
+    expect(dailyPlanState([plan('done', ['done'])], [item('done', 'completed')], '2026-10-02').planningAllowed).toBe(true)
+  })
+  it('selects the incomplete Plan alongside completed Plans and detects conflicts', () => {
+    const plans = [plan('done', ['done']), plan('current', ['open'])]
+    const items = [item('done', 'completed'), item('open', 'open')]
+    expect(dailyPlanState(plans, items, '2026-10-02')).toMatchObject({ planningAllowed: false, currentPlan: { recordId: 'current' } })
+    expect(dailyPlanState([...plans, plan('conflict', ['open'])], items, '2026-10-02')).toMatchObject({ conflict: true, planningAllowed: false, displayPlan: undefined })
+  })
+  it('orders completed fallback by creation time then ID without mutating input', () => {
+    const plans = [plan('a', ['done']), plan('b', ['done'])]
+    expect(dailyPlanState(plans, [item('done', 'completed')], '2026-10-02').displayPlan?.recordId).toBe('b')
+    expect(plans.map((p) => p.recordId)).toEqual(['a', 'b'])
+    plans[0]!.createdAt = '2026-10-02T14:00:00Z'
+    expect(dailyPlanState(plans, [item('done', 'completed')], '2026-10-02').displayPlan?.recordId).toBe('a')
+  })
+  it('fails closed on missing/foreign membership and unloaded data', () => {
+    const plans = [plan('today', ['missing'])]
+    expect(dailyPlanState(plans, [], '2026-10-02').planningAllowed).toBe(false)
+    expect(dailyPlanState(plans, [{ ...item('missing', 'completed'), createdBy: 'bob' }], '2026-10-02').planningAllowed).toBe(false)
+    expect(dailyPlanState([], [], '2026-10-02', false).planningAllowed).toBe(false)
+  })
+  it('derives completed presentation collections without changing current selection', () => {
+    const plans = [plan('a', ['done']), plan('b', ['done']), plan('current', ['open'])]
+    const items = [item('done', 'completed'), item('open', 'open')]
+    let state = dailyPlanState(plans, items, '2026-10-02')
+    expect(state.displayPlan?.recordId).toBe('current')
+    expect(state.completedPlans.map((p) => p.recordId)).toEqual(['b', 'a'])
+    expect(state.completedEarlierPlans.map((p) => p.recordId)).toEqual(['b', 'a'])
+    state = dailyPlanState(plans.slice(0, 2), items, '2026-10-02')
+    expect(state.displayPlan?.recordId).toBe('b')
+    expect(state.completedEarlierPlans.map((p) => p.recordId)).toEqual(['a'])
+    expect(dailyPlanState(plans, items, '2026-10-02', false).completedEarlierPlans).toEqual([])
+    const missing = dailyPlanState([plan('missing', ['absent'])], items, '2026-10-02')
+    expect(missing.completedPlans).toEqual([])
+    expect(missing.planningAllowed).toBe(false)
   })
 })
