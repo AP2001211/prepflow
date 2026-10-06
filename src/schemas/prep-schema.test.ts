@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { canRead, canCreate, canUpdate, canDelete, checkFieldPermissions, lintSchema } from 'deepspace/worker'
-import { prepAreasSchema, interviewsSchema, prepSessionsSchema, plansSchema, planItemsSchema } from './prep-schema'
+import { prepAreasSchema, interviewsSchema, prepSessionsSchema, plansSchema, planItemsSchema, planAcceptancesSchema } from './prep-schema'
 
 const own = { createdBy: 'alice', data: {} }
-describe.each([prepAreasSchema, interviewsSchema, prepSessionsSchema, plansSchema, planItemsSchema])('$name privacy', (schema) => {
+describe.each([prepAreasSchema, interviewsSchema, prepSessionsSchema, plansSchema, planItemsSchema, planAcceptancesSchema])('$name privacy', (schema) => {
   it.each(['member', 'admin'])('restricts %s to their own records, including reads', (role) => {
     expect(canRead(schema, role, own, 'alice')).toBe(true)
     expect(canRead(schema, role, own, 'bob')).toBe(false)
@@ -80,4 +80,54 @@ it('keeps instructions optional without a default and blocks direct snapshot edi
     expect(schema.columns.find((column) => column.name === 'instructions')).toEqual({ name: 'instructions', storage: 'text', interpretation: 'plain', immutable: true })
     expect(checkFieldPermissions(schema, 'member', { instructions: 'forged' })).not.toBeNull()
   }
+})
+
+it('keeps explicit check-in optional and action-only', () => {
+  expect(prepSessionsSchema.columns.find((column) => column.name === 'lastCheckInAt')).toEqual({ name: 'lastCheckInAt', storage: 'text', interpretation: { kind: 'datetime' } })
+  expect(checkFieldPermissions(prepSessionsSchema, 'member', { lastCheckInAt: 'forged' })).not.toBeNull()
+})
+
+it('switch reasons are optional bounded session data and cannot be forged through direct client updates', () => {
+  const column = prepSessionsSchema.columns.find((field) => field.name === 'switchReason')!
+  expect(column.required).not.toBe(true)
+  expect(column.interpretation).toEqual({ kind: 'select', options: ['stuck', 'break', 'higher_priority', 'switching_gears'] })
+  expect(checkFieldPermissions(prepSessionsSchema, 'member', { switchReason: 'stuck' })).not.toBeNull()
+})
+
+it('keeps item availability optional, immutable and date-only, with no session restriction field', () => {
+  expect(planItemsSchema.columns.find((c) => c.name === 'availableFrom')).toEqual({ name: 'availableFrom', storage: 'text', interpretation: { kind: 'date' }, immutable: true })
+  expect(checkFieldPermissions(planItemsSchema, 'member', { availableFrom: '2099-01-01' })).not.toBeNull()
+  expect(prepSessionsSchema.columns.some((c) => c.name === 'availableFrom')).toBe(false)
+})
+
+it('acceptance identity and finalization cannot be forged by direct record writes', () => {
+  expect(canCreate(planAcceptancesSchema, 'member')).toBe(false)
+  expect(checkFieldPermissions(planAcceptancesSchema, 'member', { state: 'applied', acceptedMinutes: 999 })).not.toBeNull()
+  expect(lintSchema(planAcceptancesSchema)).toEqual([])
+})
+
+it('daily application markers are action-only and additive for legacy Plans', () => {
+  expect(plansSchema.columns.find((column) => column.name === 'appliedAcceptanceIds')).toMatchObject({ storage: 'text', interpretation: { kind: 'json' }, default: [] })
+  expect(checkFieldPermissions(plansSchema, 'member', { appliedAcceptanceIds: ['forged'] })).not.toBeNull()
+})
+
+// Separate strategic collection: no executable fields or direct-write surface.
+import { prepPlansSchema } from './prep-schema'
+describe('Prep Plan schema boundary', () => {
+  it('uses owner-bound composite Interview uniqueness without a default anchor', () => {
+    expect(prepPlansSchema.uniqueOn).toEqual(['userId', 'interviewId'])
+    expect(prepPlansSchema.columns.find((c) => c.name === 'userId')).toMatchObject({ required: true, immutable: true, userBound: true })
+    expect(prepPlansSchema.columns.find((c) => c.name === 'interviewId')).toMatchObject({ immutable: true })
+    expect(prepPlansSchema.columns.find((c) => c.name === 'interviewId')).not.toHaveProperty('default')
+    expect(lintSchema(prepPlansSchema)).toEqual([])
+    for (const field of ['planItemIds', 'planDate', 'budgetMinutes', 'startsAt', 'endsAt', 'closedAt', 'completion']) expect(prepPlansSchema.columns.some((c) => c.name === field)).toBe(false)
+  })
+  it.each(['viewer', 'member', 'admin'])('allows only owned reads and no direct writes for %s', (role) => {
+    expect(canRead(prepPlansSchema, role, own, 'alice')).toBe(true)
+    expect(canRead(prepPlansSchema, role, own, 'bob')).toBe(false)
+    expect(canCreate(prepPlansSchema, role)).toBe(false)
+    expect(canUpdate(prepPlansSchema, role, own, 'alice')).toBe(false)
+    expect(canDelete(prepPlansSchema, role, own, 'alice')).toBe(false)
+  })
+  it('has no public access', () => { expect(canRead(prepPlansSchema, '*', own, 'alice')).toBe(false) })
 })

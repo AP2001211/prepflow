@@ -24,6 +24,8 @@ import { buildTools } from './src/ai/tools.js'
 import { tasks as cronTasks, runTask as runCronTask } from './src/cron.js'
 import { runJob } from './src/jobs.js'
 import { schemas } from './src/schemas.js'
+import { acceptPrepPlan } from './src/actions/planner-acceptance.js'
+import { createActionTools } from './src/server/action-routes.js'
 import { registerActionRoutes } from './src/server/action-routes.js'
 import {
   registerAuthAndIntegrationRoutes,
@@ -44,6 +46,21 @@ export const __DO_MANIFEST__ = [
 ] as const satisfies DOManifest
 
 export class AppRecordRoom extends RecordRoom<Env> {
+  // Keep acceptance read/modify/write in this one room. Local SDK tool calls
+  // bypass the queue; external record requests wait until orchestration finishes.
+  private operationQueue: Promise<unknown> = Promise.resolve()
+  override fetch(request: Request): Promise<Response> {
+    const operation = this.operationQueue.then(async () => {
+      if (new URL(request.url).pathname !== '/api/prep/accept') return super.fetch(request)
+      const userId = request.headers.get('X-User-Id')
+      if (!userId || request.headers.get('X-App-Action') !== 'true') return Response.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+      const tools = createActionTools(this.env as Env, userId, '', (localRequest) => super.fetch(localRequest))
+      return Response.json(await acceptPrepPlan({ userId, params: await request.json(), tools, env: this.env as Env, callerJwt: '' }))
+    })
+    this.operationQueue = operation.catch(() => undefined)
+    return operation
+  }
+
   constructor(state: DurableObjectState, env: Env) {
     super(state, env, schemas, { ownerUserId: env.OWNER_USER_ID })
     // Remove the former Plan(userId, planDate) uniqueOn index; keep this step

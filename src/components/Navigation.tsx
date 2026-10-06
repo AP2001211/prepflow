@@ -13,7 +13,7 @@ import { useAuthProfileReady, signOut } from 'deepspace'
 import { ChevronDown, LogOut, Menu, X } from 'lucide-react'
 import { APP_NAME } from '../constants'
 import type { Role } from '../constants'
-import { nav } from '../nav'
+import { nav, navigationPath } from '../nav'
 import { cn } from '../lib/utils'
 import {
   Avatar,
@@ -49,7 +49,7 @@ export default function Navigation() {
   })
 
   const navLink = (item: (typeof nav)[number]) => {
-    const active = location.pathname.startsWith(item.path)
+    const active = navigationPath(location.pathname).startsWith(item.path)
     return (
       <Link
         key={item.path}

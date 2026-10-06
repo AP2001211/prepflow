@@ -26,8 +26,8 @@ export function HomeUpcoming({ planDate }: { planDate: string }) {
   if (interviews.status !== 'ready' || interviews.error || next.length === 0) return null
   return <section className="home-upcoming" aria-label="Upcoming">
     <h2 className="eyebrow">Upcoming</h2>
-    {interviews.status === 'ready' && !interviews.error && next.length > 0 && <Link to="/prep" className="home-interview" aria-label="Upcoming interview context">
-      <span className="secondary-card-icon" aria-hidden="true"><CalendarDays size={20} /></span><div className="upcoming-copy">{next.length === 1 ? <><span className="font-semibold break-words">{next[0]!.data.company}</span>{next[0]!.data.role && <span className="text-sm break-words">{next[0]!.data.role}</span>}<span className="text-sm text-muted-foreground">{displayDate(next[0]!.data.scheduledDate!, true)}</span></> : <span>{next.length} interviews on {displayDate(next[0]!.data.scheduledDate!, true)}</span>}
-    </div><span className="secondary-card-action" aria-hidden="true"><ArrowRight size={18} /></span></Link>}
+    <ul className="upcoming-list">{next.map((interview) => <li key={interview.recordId}><Link to="/interviews" className="home-interview" aria-label={`Upcoming interview: ${interview.data.company}`}>
+      <span className="secondary-card-icon" aria-hidden="true"><CalendarDays size={20} /></span><div className="upcoming-copy"><span className="font-semibold break-words">{interview.data.company}</span><span className="text-sm break-words">{[interview.data.role, interview.data.stage].filter(Boolean).join(' · ')}</span><span className="text-sm text-muted-foreground">{displayDate(interview.data.scheduledDate!, true)}</span></div><span className="secondary-card-action" aria-hidden="true"><ArrowRight size={18} /></span>
+    </Link></li>)}</ul>
   </section>
 }

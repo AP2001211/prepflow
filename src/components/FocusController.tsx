@@ -23,6 +23,7 @@ function useController() {
   const feedback = useSave(loaded && mutations.ready && writable)
   const [drafts, setDrafts] = useState<Record<string, Draft>>({})
   const [notesError, setNotesError] = useState('')
+  const [checkInPending, setCheckInPending] = useState<Record<string, string | null>>({})
   const autosaves = useRef(new Map<string, NotesAutosave>())
   useEffect(() => {
     const queues = autosaves.current
@@ -56,6 +57,17 @@ function useController() {
   // Focus success is acknowledged by its contextual, record-driven UI.
   // Keep shared error/locking behavior, without retaining route-global notices.
   function save(work: () => Promise<void>) { return feedback.save(work, '') }
+  async function acknowledgeCheckIn(sessionId: string) {
+    const row = active.find((record) => record.recordId === sessionId)
+    if (!row || !ready || context || active.length !== 1) return false
+    setCheckInPending((old) => ({ ...old, [sessionId]: row.data.lastCheckInAt ?? null }))
+    const accepted = await save(async () => { await runPrepAction('acknowledgeFocusCheckIn', { sessionId }) })
+    if (!accepted) setCheckInPending((old) => { const next = { ...old }; delete next[sessionId]; return next })
+    return accepted
+  }
+  function awaitingCheckIn(record: { recordId: string; data: PrepSession }) {
+    return Object.hasOwn(checkInPending, record.recordId) && checkInPending[record.recordId] === (record.data.lastCheckInAt ?? null)
+  }
   async function stuck(sessionId: string, notes: string) {
     return save(async () => {
       await autosaves.current.get(sessionId)?.settle()
@@ -101,11 +113,11 @@ function useController() {
         acknowledgeCompletion({ sessionId, title: row.data.intent, startedAt: row.data.startedAt, endedAt: stop.endedAt })
       }
       else if (stop.outcome === 'stopped') setContext(null)
-      else setContext({ sessionId, endedAt: stop.endedAt, outcome: stop.outcome, leftOff: '', nextStep: '' })
+      else { setContext(null); navigate(`/switch/${encodeURIComponent(sessionId)}`, { replace: true }) }
     })
   }
   return { sessions, items, active, pending, pendingIds, loaded, ready, canStart: ready && !active.length && !awaitingFocus,
-    completion, setCompletion, acknowledgeCompletion, awaitingFocus, draft, setNotes, notesError, stuck, start, end, context, setContext, completionRetryId, setCompletionRetryId, busy: feedback.busy, error: feedback.error, save }
+    acknowledgeCheckIn, awaitingCheckIn, completion, setCompletion, acknowledgeCompletion, awaitingFocus, draft, setNotes, notesError, stuck, start, end, context, setContext, completionRetryId, setCompletionRetryId, busy: feedback.busy, error: feedback.error, save }
 }
 const FocusContext = createContext<ReturnType<typeof useController> | null>(null)
 export function useFocus() {

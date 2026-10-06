@@ -37,3 +37,12 @@ export function dailyPlanState(plans: RecordData<Plan>[], items: RecordData<Plan
     currentPlan: ready && incomplete.length === 1 ? incomplete[0] : undefined,
     displayPlan, completedPlans, completedEarlierPlans }
 }
+
+/** Planning access is separate from Home's historical current/completed display. */
+export function dailyPlanningAccess(plans: RecordData<Plan>[], items: RecordData<PlanItem>[], date: string, ready = true) {
+  const matches = todayPlans(plans, date)
+  const conflict = ready && matches.length > 1
+  const plan = ready && matches.length === 1 ? matches[0] : undefined
+  const unresolved = !!plan && plan.data.planItemIds.some((id) => !items.some((item) => item.recordId === id && item.createdBy === plan.createdBy))
+  return { plan, conflict, closed: !!plan?.data.closedAt, planningAllowed: ready && !conflict && !unresolved && !plan?.data.closedAt }
+}

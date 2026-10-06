@@ -14,6 +14,7 @@ import type { AgentToolAccessResult, JwtClaims } from 'deepspace/worker'
 import type { buildTools } from './tools.js'
 import { registerAiChatRoutes } from './chat-routes.js'
 import { registerPlannerRoutes } from './planner-routes.js'
+import { registerPrepStrategyRoutes } from './prep-strategy-routes.js'
 import { resolveAgentAuth, resolveAuth } from '../server/http-routes.js'
 import type { AppContext, Env } from '../../worker.js'
 
@@ -78,7 +79,10 @@ function createAccessResolver(options: RegisterAgentOptions, resolveIdentity: ty
  * both the website AI and the local assistant. The CLI is only their bridge.
  */
 export function registerAgent(app: Hono<AppContext>, options: RegisterAgentOptions): void {
-  if (options.planner) registerPlannerRoutes(app, createAccessResolver(options, resolveAuth), options.tools)
+  if (options.planner) {
+    registerPlannerRoutes(app, createAccessResolver(options, resolveAuth), options.tools)
+    registerPrepStrategyRoutes(app, createAccessResolver(options, resolveAuth))
+  }
   if (options.inApp !== false) {
     registerAiChatRoutes(app, createAccessResolver(options, resolveAuth), options.tools)
   }

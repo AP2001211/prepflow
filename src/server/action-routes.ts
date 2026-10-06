@@ -55,6 +55,11 @@ export function registerActionRoutes(app: Hono<AppContext>, resolveAuth: Resolve
     const name = c.req.param('name')
     const action = actions[name]
     if (!action) return c.json({ error: 'Action not found' }, 404)
+    if (name === 'acceptPrepPlan') {
+      const stub = c.env.RECORD_ROOMS.get(c.env.RECORD_ROOMS.idFromName(`app:${c.env.DEEPSPACE_APP_ID}`))
+      const response = await stub.fetch(new Request('https://internal/api/prep/accept', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-User-Id': auth.userId, 'X-App-Action': 'true' }, body: await c.req.text() }))
+      return c.json(await response.json() as Record<string, unknown>)
+    }
     const params = await c.req.json<Record<string, unknown>>()
     const tools = createActionTools(c.env, auth.userId, callerJwt)
     const result = await action({ userId: auth.userId, params, tools, env: c.env, callerJwt })
@@ -62,7 +67,7 @@ export function registerActionRoutes(app: Hono<AppContext>, resolveAuth: Resolve
   })
 }
 
-function createActionTools(env: Env, userId: string, callerJwt: string): ActionTools {
+export function createActionTools(env: Env, userId: string, callerJwt: string, localFetch?: (request: Request) => Promise<Response>): ActionTools {
   const stub = env.RECORD_ROOMS.get(env.RECORD_ROOMS.idFromName(`app:${env.DEEPSPACE_APP_ID}`))
 
   // The DO returns ActionResult<unknown>; callers below supply the precise
@@ -71,7 +76,7 @@ function createActionTools(env: Env, userId: string, callerJwt: string): ActionT
     tool: string,
     params: Record<string, unknown>,
   ): Promise<ActionResult<TData>> {
-    const res = await stub.fetch(
+    const res = await (localFetch ?? ((request: Request) => stub.fetch(request)))(
       new Request('https://internal/api/tools/execute', {
         method: 'POST',
         headers: {

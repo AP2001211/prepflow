@@ -337,9 +337,7 @@ main:has(.focus-workspace) {
   .resume-row { @apply relative space-y-1 border-b border-border pb-4 pr-20; }
   .resume-row button { @apply absolute right-0 top-0; }
   .flexible-work { @apply space-y-3 rounded-2xl bg-secondary p-5; }
-  .build-action { display: inline-flex; align-items: center; min-height: 60px; padding: 5px; border: 1px solid var(--color-background); border-radius: 16px; background: var(--color-primary); color: var(--color-primary-foreground); font-weight: 600; text-decoration: none; cursor: pointer; }
-  .build-action-inset { display:flex; align-items:center; justify-content:center; align-self:stretch; width:52px; min-height:48px; border-radius:11px; background:var(--color-background); color:var(--color-primary); }
-  .build-action-label { padding: 0 22px; }
+  .build-action { display: inline-flex; align-items: center; min-height: 40px; padding: 9px 16px; border: 1px solid transparent; border-radius: 10px; background: var(--color-primary); color: var(--color-primary-foreground); font-weight: 600; text-decoration: none; cursor: pointer; }
   .build-action:hover:not(:disabled) { box-shadow: 0 0 0 2px var(--color-primary); }
   .build-action:focus-visible { outline: 3px solid var(--color-foreground); outline-offset: 4px; }
   .build-action:disabled { cursor: not-allowed; opacity: 0.65; }
@@ -365,9 +363,21 @@ main:has(.focus-workspace) {
   .planner-review-heading { display: grid; gap: 10px; min-width: 0; }
   .planner-review-heading .display-title { font-size: clamp(1.6rem, 4vw, 2rem); line-height: 1.2; overflow-wrap: anywhere; }
   .planner-review-rationale { color: var(--color-muted-foreground); line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .planner-review-rationale { font-size: 14px; }
+  .planner-review-rationale summary, .recommendation-reason summary { cursor: pointer; width: fit-content; border-radius: 4px; }
+  .planner-review-rationale summary:focus-visible, .recommendation-reason summary:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 4px; }
+  .planner-review-rationale p, .recommendation-reason p { margin-top: 8px; }
+  .planner-review-page-heading { font-size: 14px; color: var(--color-muted-foreground); font-weight: 500; }
+  .planner-change-inputs { padding: 0; height: auto; justify-content: flex-start; }
+  .planner-reviewed-date { font-size: 13px; color: var(--color-muted-foreground); }
   .planner-review-total { font-size: 14px; font-weight: 600; color: var(--color-primary); margin-top: 4px; }
   .planner-review-help { font-size: 13px; line-height: 1.5; color: var(--color-muted-foreground); }
   .recommendation-list { display: grid; gap: 14px; }
+  .recommendation-selection { display: grid; gap: 8px; justify-items: center; min-width: 44px; cursor: pointer; }
+  .recommendation-selection input { width: 20px; height: 20px; accent-color: var(--color-primary); cursor: pointer; }
+  .recommendation-selection input:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 3px; }
+  .recommendation-card[data-selected="false"] { background: var(--color-background); border-style: dashed; }
+  .recommendation-card[data-selected="false"] h3 { color: var(--color-muted-foreground); }
   .recommendation-card { display: flex; align-items: flex-start; gap: 14px; padding: 20px; background: var(--color-surface-raised-warm); border: 1px solid var(--color-border); border-radius: 16px; min-width: 0; }
   .recommendation-number { display: flex; width: 28px; height: 28px; flex-shrink: 0; align-items: center; justify-content: center; border-radius: 8px; background: var(--color-accent); color: var(--color-primary); font-size: 13px; font-weight: 600; }
   .recommendation-content { flex: 1; min-width: 0; }
@@ -375,7 +385,7 @@ main:has(.focus-workspace) {
   .recommendation-heading h3 { flex: 1 1 180px; min-width: 0; font-size: 18px; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
   .recommendation-allocation { flex-shrink: 0; color: var(--color-primary); font-size: 14px; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
   .recommendation-metadata { margin-top: 5px; font-size: 13px; color: var(--color-muted-foreground); overflow-wrap: anywhere; }
-  .recommendation-instructions { margin-top: 14px; font-size: 14px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .recommendation-instructions { margin-top: 12px; font-size: 14px; line-height: 1.6; color: var(--color-muted-foreground); white-space: pre-wrap; overflow-wrap: anywhere; }
   .recommendation-reason { margin-top: 14px; color: var(--color-muted-foreground); font-size: 13px; line-height: 1.55; }
   .recommendation-reason h4 { font-size: 12px; font-weight: 500; margin-bottom: 4px; }
   .recommendation-reason p { white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -386,11 +396,12 @@ main:has(.focus-workspace) {
   .planner-review-decision { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; padding-top: 20px; border-top: 1px solid var(--color-border); }
   .planner-review-decision > div { flex: 1 1 240px; min-width: 0; }
   .planner-decision-total { font-size: 18px; font-weight: 600; margin-bottom: 6px; font-variant-numeric: tabular-nums; }
-  @media (max-width: 480px) { .recommendation-card { padding: 16px; gap: 10px; } .recommendation-heading h3 { flex-basis: 100%; font-size: 17px; } .planner-review-decision > button { width: 100%; } }
+  .planner-review-coverage { margin-top: 8px; }
+  @media (max-width: 480px) { .recommendation-card { padding: 16px; gap: 10px; } .recommendation-heading h3 { flex-basis: 100%; font-size: 17px; } .planner-review-decision > button { width: 100%; height: auto; min-height: 40px; white-space: normal; text-align: center; } }
 
 }
 @layer components {
-  .build-action { font-size: 20px; font-weight: 700; }
+  .build-action { font-size: 14px; font-weight: 600; }
   .focus-hero .eyebrow { @apply inline-block rounded-md bg-background px-2 py-1 text-foreground; }
   .focus-intro { @apply text-xl font-bold; }
   .focus-summary-content > p:not(.focus-intro):not(.focus-summary-timer) { @apply inline-block rounded-md bg-background px-2 py-1 text-foreground; }
@@ -564,8 +575,6 @@ main:has(.focus-workspace) {
   font-size: 16px;
   font-weight: 600;
 }
-.home-layout .build-action-inset { display: none; }
-.home-layout .build-action-label { padding: 0; }
 .home-layout .build-action:hover { background: var(--color-primary-hover); box-shadow: none; }
 .home-layout .invitation-assurance { font-size: 12px; text-align: right; width: auto; }
 .home-layout .pick-back-up,
@@ -654,6 +663,15 @@ main:has(.focus-workspace) {
 .focus-workspace [data-slot="button"].bg-primary:hover:not(:disabled) { background-color: var(--color-primary-hover); }
 .focus-workspace .focus-actions > button:first-child { background: var(--color-soft-accent); color: var(--color-primary); }
 .focus-workspace .focus-actions > button:first-child:hover:not(:disabled) { background: var(--color-background); }
+.focus-workspace .focus-actions > button.focus-report-difficulty {
+  background: var(--color-soft-accent);
+  border-color: #8DBCB0;
+  color: var(--color-primary);
+  font-weight: 600;
+}
+.focus-workspace .focus-actions > button.focus-report-difficulty:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-primary) 8%, var(--color-soft-accent));
+}
 @media (max-width: 767px) {
   main:has(.focus-workspace) { background-position: 48% top; }
 }
@@ -774,3 +792,229 @@ main:has(.focus-workspace) {
 .public-description { margin: 20px auto 28px; max-width: 420px; color: var(--color-muted-foreground); line-height: 1.65; }
 .public-back { display: block; width: fit-content; margin: 20px auto 0; color: var(--color-muted-foreground); font-size: 14px; }
 .public-back:hover { color: var(--color-primary); }
+
+/* Focus-only, explicit session check-in; never an inactivity indicator. */
+.focus-workspace .focus-check-in { margin-block: 20px; padding: 18px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface-raised-warm); }
+.focus-workspace .focus-check-in h4 { font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
+.focus-workspace .focus-check-in p { margin-top: 6px; font-size: 14px; color: var(--color-muted-foreground); }
+.focus-workspace .focus-check-in-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+
+/* Switch is a quiet transition, not another Home or Focus workspace. */
+.switch-workspace { max-width: 860px; margin: 0 auto; padding: 40px 24px 64px; color: #202826; }
+.switch-workspace h1 { font-size: clamp(1.8rem, 4vw, 2.6rem); line-height: 1.15; margin: 8px 0 12px; overflow-wrap: anywhere; }
+.switch-eyebrow { color: #236B65; font-size: .8rem; letter-spacing: .12em; text-transform: uppercase; }
+.switch-section { margin: 32px 0; }
+.switch-section h2 { font-size: 1.35rem; font-weight: 500; margin-bottom: 16px; }
+.switch-section h3 { font-weight: 500; margin: 20px 0 10px; }
+.switch-reasons { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.switch-reasons [aria-pressed="true"] { background: var(--color-primary); color: var(--color-primary-foreground); }
+.switch-work-list { margin-bottom: 20px; }
+.switch-work-list li { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0; border-bottom: 1px solid #D8E8E2; }
+.switch-work-list li > div, .switch-work-list strong { min-width: 0; overflow-wrap: anywhere; }
+.switch-workspace button { min-height: 44px; }
+@media (max-width: 480px) { .switch-workspace { padding: 24px 18px 48px; } .switch-work-list li { align-items: flex-start; } }
+
+.switch-workspace p { overflow-wrap: anywhere; }
+
+.switch-workspace .switch-card { padding: 24px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface-raised-warm); margin-block: 24px; }
+.switch-workspace .switch-context-fields { display: grid; gap: 14px; }
+.switch-workspace .switch-context-fields textarea { min-height: 64px; padding: 10px 12px; resize: vertical; }
+.switch-workspace .switch-context-fields > button { justify-self: start; }
+.switch-workspace .switch-summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 16px; color: var(--color-muted-foreground); font-size: .875rem; }
+.switch-workspace .switch-summary > div { min-width: 0; }
+.switch-workspace .switch-text-action { background: transparent; font-size: .875rem; min-height: 44px; text-align: left; cursor: pointer; flex-shrink: 0; }
+.switch-workspace .switch-text-action:disabled { opacity: .5; cursor: default; }
+.switch-workspace .switch-text-action:focus-visible { outline: 2px solid var(--color-ring); outline-offset: 3px; border-radius: 4px; }
+.switch-workspace .switch-reasons + .switch-text-action { margin-top: 12px; }
+.switch-workspace .switch-done { margin-top: 4px; color: var(--color-primary); }
+.switch-workspace .switch-error { margin-top: 16px; }
+@media (max-width: 480px) { .switch-workspace .switch-card { padding: 18px; } .switch-workspace .switch-summary { align-items: flex-start; } }
+
+/* Plans index: daily overview, with secondary access to general plans and work. */
+.plans-index { max-width: 1120px; margin: 0 auto; padding: 32px 24px 64px; }
+.plans-index-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 28px; }
+.plans-index-heading h1 { font-size: 2rem; font-weight: 600; }
+.plans-index-heading a { color: var(--color-muted-foreground); font-size: .875rem; }
+.plans-index-workspace { display: grid; grid-template-columns: minmax(0, 1fr) 320px; align-items: start; gap: 32px; }
+.plans-selected-day { min-width: 0; padding: 28px; background: var(--color-surface-raised-warm); border: 1px solid var(--color-border); border-radius: 12px; }
+.plans-day-plan { margin-top: 24px; }
+.plans-day-plan + .plans-day-plan { padding-top: 24px; border-top: 1px solid var(--color-border); }
+.plans-day-plan h2, .plans-day-empty h2 { font-size: 1.5rem; font-weight: 500; line-height: 1.3; overflow-wrap: anywhere; }
+.plans-day-facts { margin: 8px 0; color: var(--color-muted-foreground); font-size: .875rem; }
+.plans-day-items { display: grid; gap: 16px; list-style: decimal; padding-left: 22px; margin-top: 24px; }
+.plans-compact-work { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--color-border); }
+.plans-compact-work > div { min-width: 0; }
+.plans-compact-work h3 { font-size: 15px; font-weight: 500; line-height: 1.4; overflow-wrap: anywhere; }
+.plans-compact-work p { margin-top: 3px; font-size: 12px; color: var(--color-muted-foreground); overflow-wrap: anywhere; }
+.plans-day-items { gap: 0; margin-top: 16px; }
+.plans-extend-action, .today-extend-action { display: inline-flex; align-items: center; min-height: 40px; padding: 8px 14px; border-radius: 10px; background: #D8E8E2; color: #236B65; font-size: 14px; font-weight: 500; margin-top: 16px; }
+.plans-extend-action:hover, .today-extend-action:hover { background: #8DBCB0; color: #195650; }
+.plans-extend-action:focus-visible, .today-extend-action:focus-visible { outline: 2px solid #236B65; outline-offset: 3px; }
+@media (max-width: 480px) { .plans-compact-work { flex-wrap: wrap; } .plans-compact-work > div { flex: 1 1 170px; } }
+.plans-day-empty { padding: 40px 0; }
+.plans-day-build { display: inline-block; margin-top: 20px; color: var(--color-primary); font-weight: 500; }
+.plans-calendar { padding: 16px; border: 1px solid var(--color-border); border-radius: 12px; }
+.plans-calendar-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.plans-calendar-heading h2 { font-size: 1rem; font-weight: 500; }
+.plans-calendar button { min-height: 44px; cursor: pointer; border-radius: 8px; }
+.plans-calendar-heading button { width: 44px; }
+.plans-calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; text-align: center; margin-top: 12px; }
+.plans-calendar-grid > span { font-size: .75rem; color: var(--color-muted-foreground); padding-block: 8px; }
+.plans-calendar-grid button { position: relative; font-size: .875rem; }
+.plans-calendar button:hover { background: var(--color-secondary); }
+.plans-calendar button[aria-current="date"] { box-shadow: inset 0 0 0 1px var(--color-primary); }
+.plans-calendar button.is-selected { background: var(--color-primary); color: var(--color-primary-foreground); }
+.plans-calendar-dot { position: absolute; bottom: 5px; left: calc(50% - 2px); width: 4px; height: 4px; border-radius: 50%; background: currentColor; }
+.plans-calendar-today { padding: 0 12px; margin-top: 12px; color: var(--color-primary); font-size: .875rem; }
+.plans-index a:focus-visible, .plans-calendar button:focus-visible, .plans-secondary summary:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 3px; }
+.plans-secondary { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--color-border); display: grid; gap: 16px; }
+.plans-secondary details { border-bottom: 1px solid var(--color-border); padding-bottom: 16px; min-width: 0; scroll-margin-top: 24px; }
+.plans-secondary summary { cursor: pointer; color: var(--color-primary); padding-block: 8px; }
+.plans-secondary details[open] > :not(summary) { margin-top: 16px; }
+@media (max-width: 760px) {
+  .plans-index { padding: 24px 16px 40px; }
+  .plans-index-workspace { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+  .plans-selected-day { padding: 20px; }
+  .plans-calendar { max-width: 360px; width: 100%; }
+}
+
+/* Strategic Prep Plans: deliberately separate from executable Daily Plans. */
+.plans-horizon-heading { margin-bottom: 1rem; font-size: 1.25rem; font-weight: 600; }
+.prep-plans-section { margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--color-border); }
+.prep-plans-section > header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
+.prep-plans-section h2 { font-size: 1.5rem; font-weight: 600; }
+.prep-plan-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 1rem; }
+.prep-plans-create { margin-top: 1.25rem; }
+.prep-plan-cards a { display: block; cursor: pointer; padding: 1.25rem; border-radius: 1rem; background: #f7f2e5; }
+.prep-plan-cards a:hover { background: #edf1e7; }
+.prep-plan-cards a:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 3px; background: #edf1e7; }
+.prep-plan-cards h3 { font-size: 1.125rem; font-weight: 600; margin-bottom: .4rem; }
+.prep-plan-page { max-width: 740px; margin: auto; padding: 2rem 1.25rem 4rem; display: grid; gap: 1.25rem; }
+.prep-plan-page h1 { font-size: clamp(1.8rem, 4vw, 2.5rem); line-height: 1.2; font-weight: 600; }
+.prep-plan-page h2 { font-size: 1.125rem; font-weight: 600; margin-bottom: .5rem; }
+.prep-plan-page, .prep-plan-cards { overflow-wrap: anywhere; min-width: 0; }
+.prep-plan-form { display: grid; gap: 1.25rem; }
+.prep-plan-anchor, .prep-plan-area-options { display: flex; gap: .75rem 1.5rem; flex-wrap: wrap; }
+.prep-plan-anchor legend, .prep-plan-area-options legend { margin-bottom: .75rem; }
+.prep-plan-anchor label, .prep-plan-area-options label { display: flex; align-items: center; gap: .5rem; overflow-wrap: anywhere; }
+.prep-plan-form input[type='checkbox'], .prep-plan-form input[type='radio'] { accent-color: #236b65; }
+.prep-plan-form-actions { display: flex; gap: .75rem; flex-wrap: wrap; }
+.prep-plan-page button { justify-self: start; }
+
+/* My Prep: stable preparation context, separate from date-based execution. */
+.my-prep > .prep-plans-section { margin-top: 0; padding-top: 0; border-top: 0; }
+.my-prep .preparation-context > section { border: 0; border-top: 1px solid var(--color-border); border-radius: 0; padding: 1.5rem 0 0; min-width: 0; }
+.prep-create summary { cursor: pointer; color: var(--color-primary); width: fit-content; padding: .5rem 0; }
+.prep-create summary:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 3px; }
+.prep-create form { max-width: 640px; margin-top: 1rem; }
+.upcoming-list { display: grid; gap: .75rem; }
+
+/* Signed-in density: actual spacing and type, never viewport scaling. */
+.authenticated-app { --app-section-gap: 20px; font-size: 14px; line-height: 1.5; }
+.authenticated-app [data-slot="button"] { min-height: 36px; padding-inline: 14px; font-size: 13px; }
+.authenticated-app [data-slot="input"] { height: 38px; font-size: 14px; }
+.authenticated-app [data-slot="textarea"] { font-size: 14px; }
+.authenticated-app .home-nav-canvas { height: 56px; }
+.authenticated-app .app-nav-tab { font-size: 13px; padding: 8px 12px; }
+.authenticated-app .home-layout { --home-density-gap: 18px; padding-top: 24px; }
+.authenticated-app .home-greeting { font-size: 32px; }
+.authenticated-app .home-greeting-detail { font-size: 14px; }
+.authenticated-app .home-primary .plan-invitation,
+.authenticated-app .home-primary .today-plan,
+.authenticated-app .home-primary .focus-hero { padding: 20px; }
+.authenticated-app .home-layout .plan-invitation .display-title { font-size: 32px; }
+.authenticated-app .home-layout .today-plan .display-title { font-size: 26px; }
+.authenticated-app .home-layout .focus-summary-content .display-title { font-size: 24px; }
+.authenticated-app .home-layout .pick-back-up, .authenticated-app .home-layout .home-upcoming,
+.authenticated-app .home-layout .prep-area-object { padding: 16px; }
+.authenticated-app .home-layout .today-work-row { padding-block: 12px; }
+.authenticated-app .home-layout .home-start-other { margin-top: 20px; padding-top: 20px; }
+.authenticated-app .home-layout .home-start-other h2 { font-size: 24px; }
+.authenticated-app .home-layout .prep-area-objects { gap: 16px; margin-top: 16px; }
+.authenticated-app .home-layout .focus-hero { min-height: 220px; }
+.authenticated-app .home-layout .today-invitation-copy .invitation-copy { margin-top: 16px; font-size: 14px; }
+.authenticated-app .home-layout .today-planner-illustration { max-width: 230px; height: 180px; object-fit: contain; }
+.authenticated-app .planner-page { padding-block: 24px; }
+.authenticated-app .planner-page h1 { font-size: 28px; }
+.authenticated-app .planner-form { padding: 20px; }
+.authenticated-app .recommendation-card { padding: 16px; gap: 12px; }
+.authenticated-app .recommendation-heading h3 { font-size: 17px; }
+.authenticated-app .planner-review-title { font-size: 28px; }
+.authenticated-app .prep-plan-page { padding-top: 24px; gap: 16px; }
+.authenticated-app .prep-plan-page h1 { font-size: 28px; }
+.authenticated-app .switch-workspace { padding-top: 28px; }
+.authenticated-app .switch-workspace h1 { font-size: 28px; }
+.authenticated-app .switch-workspace .switch-card { padding: 18px; margin-block: 18px; }
+.authenticated-app .focus-content { margin-top: 28px; }
+.authenticated-app .focus-task-title { font-size: clamp(28px, 3vw, 40px); }
+.authenticated-app .focus-elapsed { font-size: clamp(48px, 5vw, 68px); }
+.authenticated-app .focus-scene { gap: 24px; padding-bottom: 24px; }
+.focus-instructions summary { cursor: pointer; color: var(--color-primary); font-size: 13px; padding-block: 6px; }
+.focus-instructions summary:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 3px; }
+.focus-instructions p { margin-top: 8px; }
+.focus-difficulty-noted { align-self: center; color: var(--color-primary); font-size: 13px; }
+.focus-difficulty-noted span { display: block; color: var(--color-muted-foreground); font-size: 12px; }
+.plans-index { max-width: 1320px; padding-block: 24px 48px; }
+.plans-index-heading { margin-bottom: 20px; }
+.plans-index-heading h1 { font-size: 28px; }
+.plans-index-workspace { grid-template-columns: minmax(0, 1fr) 300px; gap: 24px; }
+.plans-selected-day { padding: 22px; }
+.plans-day-plan { margin-top: 18px; }
+.plans-day-plan h2, .plans-day-empty h2 { font-size: 21px; }
+.plans-day-empty { padding-block: 28px; }
+.plans-compact-work { gap: 16px; padding-block: 12px; }
+.plans-compact-work h3 { font-size: 14px; }
+.plans-compact-work.is-completed h3 { color: var(--color-muted-foreground); }
+.plans-compact-work.is-completed { background: color-mix(in srgb, var(--color-secondary) 15%, transparent); }
+.plans-day-items li:last-child .plans-compact-work { border-bottom: 0; }
+.my-prep, .interviews-page { width: 100%; max-width: 1240px; margin-inline: auto; padding: 24px; }
+.my-prep > h1, .interviews-page > h1 { font-size: 28px; font-weight: 600; }
+.my-prep > * + *, .interviews-page > * + * { margin-top: 16px; }
+.my-prep .prep-plans-section h2, .preparation-context h2 { font-size: 20px; }
+.prep-plan-cards, .context-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 14px; }
+.prep-plan-cards a, .context-cards > li { padding: 16px; border-radius: 12px; background: #f7f2e5; min-width: 0; overflow-wrap: anywhere; }
+.prep-plan-cards h3, .context-cards h3 { font-size: 16px; }
+.context-cards > li > p { margin-top: 4px; }
+.context-cards > li > p:last-child { max-width: 65ch; }
+.preparation-context > section { padding: 0; border: 0; }
+.my-prep .preparation-context > section { padding-top: 20px; }
+.interviews-page .preparation-context h2 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.prep-create { margin-top: 16px; }
+@media (max-width: 760px) {
+  .plans-index-workspace { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+  .plans-selected-day { padding: 18px; }
+  .my-prep, .interviews-page { padding: 20px 16px; }
+  .authenticated-app .home-greeting { font-size: 28px; }
+}
+@media (pointer: coarse) {
+  .authenticated-app [data-slot="button"], .authenticated-app .build-action,
+  .authenticated-app .app-nav-tab { min-height: 44px; }
+}
+.authenticated-app [data-slot="button"].h-10 { height: 36px; }
+.interview-date { font-size: 13px; color: var(--color-primary); font-weight: 500; }
+.focus-scene:not(:has(.focus-session-context)) { grid-template-columns: minmax(0, 1fr); }
+.focus-scene:not(:has(.focus-session-context)) .focus-identity { max-width: 780px; width: 100%; margin-inline: auto; }
+.focus-scene:not(:has(.focus-session-context)) .focus-time { grid-column: 1; }
+
+/* Content-led card density; keep the approved page grids and type scale. */
+.authenticated-app .home-layout .today-plan { padding-block: 14px; }
+.authenticated-app .home-layout .today-plan > * + * { margin-block: 10px 0; }
+.authenticated-app .home-layout .today-plan .today-work-row { padding-block: 8px; }
+.authenticated-app .home-layout .pick-back-up,
+.authenticated-app .home-layout .home-upcoming { padding-block: 12px; }
+.authenticated-app .home-layout .continuity-heading { margin-bottom: 8px; }
+.authenticated-app .home-layout .pick-back-up .resume-row { padding-top: 10px; padding-bottom: 10px; }
+.authenticated-app .home-layout .pick-back-up .resume-row:last-child { padding-bottom: 0; }
+.authenticated-app .home-layout .upcoming-list { gap: 8px; }
+.authenticated-app .home-layout .home-upcoming .home-interview { padding-block: 8px; }
+.interviews-page .interview-cards > li { padding: 10px 14px; }
+.interviews-page .interview-cards > li > p { margin-top: 2px; }
+.interviews-page .interview-date {
+  display: inline-block;
+  max-width: 100%;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: #D8E8E2;
+  color: #236B65;
+  line-height: 1.3;
+}

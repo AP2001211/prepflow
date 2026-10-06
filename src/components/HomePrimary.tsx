@@ -16,11 +16,11 @@ export function HomePrimary({ planDate }: { planDate: string }) {
     const hold = window.setTimeout(() => {
       if (reduced) setCompletion(null)
       else setPhase('leaving')
-    }, 2800)
+    }, 1200)
     const swap = reduced ? undefined : window.setTimeout(() => {
       setPhase('arriving')
       setCompletion(null)
-    }, 3450)
+    }, 1850)
     return () => { window.clearTimeout(hold); if (swap !== undefined) window.clearTimeout(swap) }
   }, [completion, setCompletion])
   useEffect(() => {

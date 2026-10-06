@@ -36,3 +36,29 @@ it('validates concise new identity and bounded instructions without accepting ex
   for (const invalid of [{ ...item, intent: 'x'.repeat(201) }, { ...item, instructions: 'x'.repeat(2001) }, { ...existingProposal.items[0], instructions: 'Forged' }]) expect(recommendationSchema.safeParse({ ...existingProposal, items: [invalid] }).success).toBe(false)
   expect(() => validateRecommendation({ ...existingProposal, items: [item, { ...item, instructions: 'Different approach' }] }, 30)).toThrow('repeats new')
 })
+
+it('validates explicit daily target dates and requires their timezone without changing generic inputs', () => {
+  expect(plannerRequestSchema.safeParse({ availableMinutes: 30, planDate: '2027-01-01', timeZone: 'America/New_York' }).success).toBe(true)
+  expect(plannerRequestSchema.safeParse({ availableMinutes: 30 }).success).toBe(true)
+  for (const extra of [{ planDate: '2027-01-01' }, { planDate: '2027-02-30', timeZone: 'UTC' }, { planDate: '2027-01-01', timeZone: 'Invalid/Zone' }]) expect(plannerRequestSchema.safeParse({ availableMinutes: 30, ...extra }).success).toBe(false)
+})
+
+it('bounds new recommendation names without invalidating historical acceptance titles', async () => {
+  const { PLAN_TITLE_MAX_LENGTH, legacyRecommendationSchema } = await import('./planner-contract')
+  expect(recommendationSchema.safeParse({ ...existingProposal, title: 'x'.repeat(PLAN_TITLE_MAX_LENGTH) }).success).toBe(true)
+  expect(recommendationSchema.safeParse({ ...existingProposal, title: 'x'.repeat(PLAN_TITLE_MAX_LENGTH + 1) }).success).toBe(false)
+  expect(legacyRecommendationSchema.safeParse({ ...existingProposal, title: 'x'.repeat(180) }).success).toBe(true)
+  const { buildSystemPrompt } = await import('./tools')
+  const prompt = buildSystemPrompt('PrepFlow')
+  for (const rule of ['persistent noun-phrase label', '3–7 words', 'at most 80 characters', 'Do not include dates or relative-date wording', 'not a sentence or descriptive summary', 'Do not enumerate the activities or summarize the full recommendation', 'Today\'s Plan']) expect(prompt).toContain(rule)
+})
+
+it('separates new activity identity from execution guidance without tightening the contract', async () => {
+  const { buildSystemPrompt } = await import('./tools')
+  const prompt = buildSystemPrompt('PrepFlow')
+  for (const rule of ['concise activity identity', 'generally 2–6 words when practical', 'large Focus heading', 'mini-instructions', 'colon-plus-execution-detail', 'Instructions own execution detail', 'complement rather than repeat intent', 'Encourage providing instructions', 'leftOff, nextStep', 'Existing identity and instructions are canonical']) expect(prompt).toContain(rule)
+  const item = { kind: 'new', intent: 'x'.repeat(200), instructions: 'y'.repeat(2000), prepAreaId: 'area', estimatedMinutes: 15, reason: 'Useful practice.' }
+  expect(validateRecommendation({ ...existingProposal, items: [item] }, 30).items).toEqual([item])
+  const withoutInstructions = { kind: item.kind, intent: item.intent, prepAreaId: item.prepAreaId, estimatedMinutes: item.estimatedMinutes, reason: item.reason }
+  expect(recommendationSchema.safeParse({ ...existingProposal, items: [withoutInstructions] }).success).toBe(true)
+})

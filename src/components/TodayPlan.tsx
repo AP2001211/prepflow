@@ -3,7 +3,7 @@ import { displayDate } from '../lib/display-date'
 import { Link } from 'react-router-dom'
 import { useQuery } from 'deepspace'
 import type { Plan, PrepArea } from '../schemas/prep-schema'
-import { dailyPlanState } from '../lib/plan-date'
+import { dailyPlanState, dailyPlanningAccess } from '../lib/plan-date'
 import { useFocus } from './FocusController'
 import { Button } from './ui'
 
@@ -13,6 +13,7 @@ export function TodayPlan({ planDate }: { planDate: string }) {
   const focus = useFocus()
   const ready = plans.status === 'ready' && !plans.error && plans.records.length < 500 && focus.loaded
   const daily = dailyPlanState(plans.records, focus.items.records, planDate, ready)
+  const access = dailyPlanningAccess(plans.records, focus.items.records, planDate, ready)
   const plan = daily.displayPlan
   const earlier = daily.completedEarlierPlans
   const plannedMinutes = earlier.reduce((sum, row) => sum + (row.data.budgetMinutes ?? 0), 0)
@@ -26,15 +27,16 @@ export function TodayPlan({ planDate }: { planDate: string }) {
     {plan ? <>
       <h2 className="display-title break-words">{plan.data.title}</h2>
       <p className="plan-facts">{plan.data.planItemIds.filter((id) => focus.items.records.find((item) => item.recordId === id)?.data.status === 'completed').length} of {plan.data.planItemIds.length} complete{plan.data.budgetMinutes ? ` · ${plan.data.budgetMinutes} minute budget` : ''} · {plan.data.planItemIds.length} {plan.data.planItemIds.length === 1 ? 'item' : 'items'}</p>
-      <ol className="today-work-surface">{plan.data.planItemIds.map((id, index) => {
+      <ol className="today-work-surface">{plan.data.planItemIds.filter((id) => focus.items.records.find((row) => row.recordId === id)?.data.status === 'open' && !focus.pendingIds.has(id) && !focus.active.some((row) => row.data.planItemId === id)).slice(0, 1).map((id) => {
+        const index = plan.data.planItemIds.indexOf(id)
         const item = focus.items.records.find((row) => row.recordId === id)
         const resumed = focus.sessions.records.some((row) => row.data.planItemId === id && row.data.state === 'ended')
         return <li key={id} className="today-work-row"><span className="work-number">{item?.data.status === 'completed' ? '✓' : String(index + 1).padStart(2, '0')}</span><div className="min-w-0 flex-1"><h3 className="font-medium break-words">{item?.data.intent ?? 'Loading intended work…'}</h3><p className="text-sm text-muted-foreground">{areas.records.find((area) => area.recordId === item?.data.prepAreaId)?.data.name ?? 'Prep Area'}{item?.data.status === 'completed' ? ' · Completed' : focus.active.some((row) => row.data.planItemId === id) ? ' · In focus' : ''}</p></div>
           {item?.data.status !== 'completed' && item && !plan.data.closedAt && <Button size="sm" variant="outline" disabled={!focus.canStart || focus.pendingIds.has(id)} onClick={() => void focus.start(id, plan.recordId)}>{resumed ? 'Resume' : 'Start'}</Button>}
         </li>
       })}</ol>
-      {focus.loaded && plan.data.planItemIds.length > 0 && plan.data.planItemIds.every((id) => focus.items.records.find((item) => item.recordId === id)?.data.status === 'completed') && <p className="plan-facts">A good day’s work. Your plan stays here for today.</p>}
-      {daily.planningAllowed && <PlanBuildLink to="/plans/suggest?mode=daily">Build another plan</PlanBuildLink>}
+      {daily.planningAllowed && <p className="plan-facts">You finished what you planned for today.</p>}
+      {access.planningAllowed && (daily.planningAllowed ? <PlanBuildLink to="/plans/suggest?mode=daily">Plan more for today</PlanBuildLink> : <Link className="today-extend-action" to="/plans/suggest?mode=daily">Add to today's plan</Link>)}
       <Link className="quiet-link plan-detail-link" to={`/plans/${plan.recordId}`}>View plan details →</Link>
     </> : daily.planningAllowed && !daily.matches.length && <>
       <div className="today-invitation-composition"><div className="today-invitation-copy">

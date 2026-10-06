@@ -9,8 +9,10 @@ export interface Interview {
   prepAreaIds: string[]
   notes?: string
 }
+export type SwitchReason = 'stuck' | 'break' | 'higher_priority' | 'switching_gears'
 export type SessionOutcome = 'completed' | 'stopped' | 'switched'
 export interface Plan {
+  appliedAcceptanceIds?: string[]
   planDate?: string
   userId?: string
   title: string
@@ -21,6 +23,7 @@ export interface Plan {
   budgetMinutes?: number
 }
 export interface PlanItem {
+  availableFrom?: string
   prepAreaId: string
   interviewId?: string
   intent: string
@@ -36,12 +39,14 @@ export interface PrepSession {
   intent: string
   instructions?: string
   startedAt: string
+  lastCheckInAt?: string
   endedAt?: string
   state: 'active' | 'ended'
   outcome?: SessionOutcome
   encounteredStuck: boolean | number
   notes?: string
   leftOff?: string
+  switchReason?: SwitchReason
   nextStep?: string
 }
 
@@ -88,12 +93,14 @@ export const prepSessionsSchema: CollectionSchema = {
     { name: 'intent', storage: 'text', interpretation: 'plain', required: true, immutable: true },
     { name: 'instructions', storage: 'text', interpretation: 'plain', immutable: true },
     { name: 'startedAt', storage: 'text', interpretation: { kind: 'datetime' }, required: true, immutable: true },
+    { name: 'lastCheckInAt', storage: 'text', interpretation: { kind: 'datetime' } },
     { name: 'endedAt', storage: 'text', interpretation: { kind: 'datetime' } },
     { name: 'state', storage: 'text', interpretation: { kind: 'select', options: ['active', 'ended'] }, required: true, default: 'active' },
     { name: 'outcome', storage: 'text', interpretation: { kind: 'select', options: ['completed', 'stopped', 'switched'] } },
     { name: 'encounteredStuck', storage: 'number', interpretation: { kind: 'boolean' }, default: false },
     { name: 'notes', storage: 'text', interpretation: 'plain' },
     { name: 'leftOff', storage: 'text', interpretation: 'plain' },
+    { name: 'switchReason', storage: 'text', interpretation: { kind: 'select', options: ['stuck', 'break', 'higher_priority', 'switching_gears'] } },
     { name: 'nextStep', storage: 'text', interpretation: 'plain' },
   ],
   // Lifecycle writes are actions now: a direct completion must not bypass the
@@ -105,6 +112,7 @@ export const plansSchema: CollectionSchema = {
   name: 'plans',
   columns: [
     { name: 'planDate', storage: 'text', interpretation: { kind: 'date' }, immutable: true },
+    { name: 'appliedAcceptanceIds', storage: 'text', interpretation: { kind: 'json' }, default: [] },
     { name: 'userId', storage: 'text', interpretation: 'plain', userBound: true, immutable: true },
     { name: 'title', storage: 'text', interpretation: 'plain', required: true },
     { name: 'planItemIds', storage: 'text', interpretation: { kind: 'json' }, default: [] },
@@ -124,7 +132,51 @@ export const planItemsSchema: CollectionSchema = {
     { name: 'intent', storage: 'text', interpretation: 'plain', required: true, immutable: true },
     { name: 'instructions', storage: 'text', interpretation: 'plain', immutable: true },
     { name: 'status', storage: 'text', interpretation: { kind: 'select', options: ['open', 'completed'] }, required: true, default: 'open' },
+    { name: 'availableFrom', storage: 'text', interpretation: { kind: 'date' }, immutable: true },
     { name: 'completedAt', storage: 'text', interpretation: { kind: 'datetime' } },
   ],
   permissions: privatePermissions(false, []),
+}
+
+/** One caller-owned AI acceptance; immutable identity, action-only finalization. */
+export const planAcceptancesSchema: CollectionSchema = {
+  name: 'plan-acceptances',
+  columns: [
+    ...['requestId', 'fingerprint', 'planId', 'mode'].map((name) => ({ name, storage: 'text' as const, interpretation: 'plain' as const, required: true, immutable: true })),
+    ...['selectedIndices', 'planItemIds'].map((name) => ({ name, storage: 'text' as const, interpretation: { kind: 'json' as const }, required: true, immutable: true })),
+    { name: 'acceptedMinutes', storage: 'number', interpretation: 'plain', required: true, immutable: true },
+    { name: 'planDate', storage: 'text', interpretation: { kind: 'date' }, immutable: true },
+    { name: 'state', storage: 'text', interpretation: { kind: 'select', options: ['pending', 'applied'] }, required: true },
+  ],
+  permissions: privatePermissions(false, []),
+}
+
+/** Strategic context only; no executable membership or scheduling fields. */
+export interface PrepPlan {
+  userId: string
+  title: string
+  interviewId?: string
+  goal?: string
+  context: string
+  prepAreaIds: string[]
+  creationFingerprint: string
+}
+export const prepPlansSchema: CollectionSchema = {
+  name: 'prep-plans',
+  uniqueOn: ['userId', 'interviewId'],
+  columns: [
+    { name: 'userId', storage: 'text', interpretation: 'plain', userBound: true, immutable: true, required: true },
+    { name: 'title', storage: 'text', interpretation: 'plain', required: true },
+    { name: 'interviewId', storage: 'text', interpretation: { kind: 'reference', targetTable: 'interviews', displayColumn: 'company' }, immutable: true },
+    { name: 'goal', storage: 'text', interpretation: 'plain' },
+    { name: 'context', storage: 'text', interpretation: 'plain', required: true },
+    { name: 'prepAreaIds', storage: 'text', interpretation: { kind: 'json' }, default: [] },
+    { name: 'creationFingerprint', storage: 'text', interpretation: 'plain', required: true, immutable: true },
+  ],
+  permissions: {
+    '*': { read: false, create: false, update: false, delete: false },
+    viewer: { read: 'own', create: false, update: false, delete: false },
+    member: { read: 'own', create: false, update: false, delete: false },
+    admin: { read: 'own', create: false, update: false, delete: false },
+  },
 }

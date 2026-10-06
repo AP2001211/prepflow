@@ -91,7 +91,7 @@ test('public entry uses product copy and enters the app', async ({ page }) => {
 for (const width of [1440, 390]) {
   test(`signed-out gateway and auth overlay at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 })
-    for (const path of ['/home', '/plans', '/plans/suggest', '/plans/unknown-plan', '/prep', '/history', '/settings', '/focus']) {
+    for (const path of ['/home', '/plans', '/plans/suggest', '/plans/unknown-plan', '/prep', '/interviews', '/history', '/settings', '/focus']) {
       await page.goto(path)
       await expect(page).toHaveURL(new RegExp(`${path}$`))
       await expect(page.getByRole('heading', { name: 'Keep your interview preparation moving.' })).toBeVisible()
@@ -101,7 +101,7 @@ for (const width of [1440, 390]) {
       }
       await expect(nav.getByRole('button', { name: 'Sign in', exact: true })).toHaveCount(0)
       await expect(page.locator('.signed-out-gateway').getByRole('button', { name: 'Sign in', exact: true })).toBeVisible()
-      for (const label of ['Home', 'Plans', 'My Prep', 'History']) {
+      for (const label of ['Home', 'Plans', 'My Prep', 'Interviews', 'History']) {
         await expect(nav.getByRole('link', { name: label, exact: true })).toHaveCount(0)
       }
       await expect(page.getByRole('button', { name: 'Toggle menu' })).toHaveCount(0)

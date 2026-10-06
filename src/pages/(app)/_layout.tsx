@@ -26,7 +26,8 @@ import { APP_NAME, SCOPE_ID } from '../../constants'
 import { schemas } from '../../schemas'
 
 export default function AppLayout() {
-  const focusMode = useLocation().pathname === '/focus'
+  const pathname = useLocation().pathname
+  const focusMode = pathname === '/focus' || pathname.startsWith('/switch/')
   return (
     <DeepSpaceAuthProvider>
       {/* The prerendered landing owns the document <title> and React drops it
@@ -56,7 +57,7 @@ export default function AppLayout() {
  * check is one round-trip, and in-flow placeholders read as a layout jump.
  */
 function AuthBoot({ children }: { children: ReactNode }) {
-  const { isLoaded } = useAuthStatus()
+  const { isLoaded, isSignedIn } = useAuthStatus()
   // Record writes (`create`/`put`/`remove`) are fire-and-forget — they resolve
   // before the server answers, so a denied or invalid write only surfaces
   // through onWriteError. Route rejections to toasts so they're never a
@@ -75,7 +76,7 @@ function AuthBoot({ children }: { children: ReactNode }) {
       }
     >
       <RecordScope roomId={SCOPE_ID} schemas={schemas}>
-        {children}
+        <div className={isSignedIn ? 'authenticated-app contents' : 'contents'}>{children}</div>
       </RecordScope>
     </RecordProvider>
   )

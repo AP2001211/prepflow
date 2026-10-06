@@ -14,3 +14,7 @@ src/modals.tsx
 .claude/launch.json
 .claude/worktrees
 design-references/
+.env
+.env.local
+.env.*
+!.env.example

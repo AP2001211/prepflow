@@ -118,3 +118,41 @@ it('separates historical memberships from local-day unresolved daily context', a
   expect(snapshot.openPlans.map((p) => p.id)).not.toEqual(expect.arrayContaining(['completed-daily']))
   expect(snapshot.openWork[0]?.planMemberships.map((p) => p.id)).toContain('past-daily')
 })
+
+it('keeps evidence at actual now while selecting target plans and interview deadlines', async () => {
+  const f = contextFixture()
+  f.add('plans', 'target', { title: 'Future', planDate: '2026-10-07', planItemIds: ['item'] })
+  f.add('plans', 'today-plan', { title: 'Today', planDate: '2026-10-02', planItemIds: ['item'] })
+  f.add('interviews', 'before-target', { company: 'Before', scheduledDate: '2026-10-06', prepAreaIds: [] })
+  f.add('interviews', 'on-target', { company: 'On', scheduledDate: '2026-10-07', prepAreaIds: [] })
+  const snapshot = await prepReader(f.executor, 'UTC', '2026-10-07').snapshot({}, now)
+  expect(snapshot.asOf).toBe('2026-10-02T12:00:00.000Z')
+  expect(snapshot.evidenceLocalDate).toBe('2026-10-02')
+  expect(snapshot.targetPlanDate).toBe('2026-10-07')
+  expect(snapshot.openPlans.map((p) => p.id)).toContain('target')
+  expect(snapshot.openPlans.map((p) => p.id)).not.toContain('today-plan')
+  expect(snapshot.interviews.map((p) => p.id)).not.toContain('before-target')
+  expect(snapshot.interviews.find((p) => p.id === 'on-target')?.timingRelativeToPlanDate).toBe('on')
+  expect(snapshot.coverage.recentIntervals.until).toBe(snapshot.asOf)
+})
+
+describe('canonical automatic availability', () => {
+  it.each(['2026-10-05', '2026-10-06', '2026-10-07', '2026-10-08'])('uses target %s independently of evidence time', async (target) => {
+    const f = contextFixture()
+    f.add('plan-items', 'future', { prepAreaId: 'area', intent: 'Future work', status: 'open', availableFrom: '2026-10-07' })
+    f.add('plans', 'future-plan', { title: 'Future', planDate: '2026-10-07', planItemIds: ['item', 'future'] })
+    f.add('prep-sessions', 'attempt', { planItemId: 'item', state: 'ended', outcome: 'stopped', startedAt: '2026-10-01T12:00:00Z', endedAt: '2026-10-01T12:10:00Z', leftOff: 'Existing context' })
+    const reader = prepReader(f.executor, 'UTC', target)
+    const snapshot = await reader.snapshot({}, now)
+    expect(snapshot.asOf).toBe('2026-10-02T12:00:00.000Z')
+    expect(snapshot.openWork.some((item) => item.id === 'future')).toBe(target >= '2026-10-07')
+    expect(snapshot.openWork.find((item) => item.id === 'item')).toMatchObject({ previouslyStarted: true, latestResumeContext: { leftOff: 'Existing context' } })
+    if (target < '2026-10-07') {
+      await expect(reader.workContext('future')).rejects.toThrow('deferred')
+      await expect(reader.enrich({ ...existingProposal, items: [{ ...existingProposal.items[0]!, existingPlanItemId: 'future' }] })).rejects.toThrow('deferred')
+    } else {
+      expect((await reader.workContext('future')).availableFrom).toBe('2026-10-07')
+      expect(await reader.enrich({ ...existingProposal, items: [{ ...existingProposal.items[0]!, existingPlanItemId: 'future' }] })).toHaveLength(1)
+    }
+  })
+})

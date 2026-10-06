@@ -6,11 +6,15 @@ import { itemFocusMs, formatFocus, itemStatusAt } from '../lib/focus'
 import { useFocus } from './FocusController'
 import { Button } from './ui'
 
-export function WorkItemRow({ item, plans, plan }: { item: RecordData<PlanItem>; plans: RecordData<Plan>[]; plan?: RecordData<Plan> }) {
+export function WorkItemRow({ item, plans, plan, compact = false }: { item: RecordData<PlanItem>; plans: RecordData<Plan>[]; plan?: RecordData<Plan>; compact?: boolean }) {
   const focus = useFocus()
   const areas = useQuery<PrepArea>('prep-areas')
   const others = itemMemberships(plans, item.recordId).filter((row) => row.recordId !== plan?.recordId)
   const resumed = focus.sessions.records.some((row) => row.data.planItemId === item.recordId && row.data.state === 'ended')
+  if (compact) return <div className={`plans-compact-work${item.data.status === 'completed' ? ' is-completed' : ''}`}>
+    <div><h3>{item.data.intent}</h3><p>{areas.records.find((area) => area.recordId === item.data.prepAreaId)?.data.name ?? 'Prep Area'} · {item.data.status === 'completed' ? 'Completed' : resumed ? 'Previously started' : 'Not started'}</p></div>
+    {item.data.status === 'open' && <Button size="sm" variant="secondary" disabled={!focus.canStart || focus.pendingIds.has(item.recordId)} onClick={() => void focus.start(item.recordId, plan?.data.closedAt ? undefined : plan?.recordId)}>{resumed ? 'Resume' : 'Start'}</Button>}
+  </div>
   return <div className="space-y-2 border-b border-border pb-3">
     <h3 className="font-medium break-words">{item.data.intent}</h3>
     {item.data.instructions && <p className="text-sm text-muted-foreground whitespace-pre-wrap break-words">{item.data.instructions}</p>}

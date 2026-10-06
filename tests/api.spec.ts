@@ -2,14 +2,16 @@ import { test, expect } from '@playwright/test'
 
 test.describe('API tests', () => {
   test('PrepFlow relationship actions require authentication', async ({ request }) => {
-    for (const name of ['acceptPrepPlan', 'createInterview', 'createPlan', 'createPlanItem', 'addPlanItem', 'closePlan', 'startPrepSession', 'endPrepSession', 'reportStuck', 'saveResumeContext', 'reconcileCompletion']) {
+    for (const name of ['createPrepPlan', 'updatePrepPlan', 'acceptPrepPlan', 'createInterview', 'createPlan', 'createPlanItem', 'addPlanItem', 'closePlan', 'startPrepSession', 'endPrepSession', 'reportStuck', 'saveResumeContext', 'reconcileCompletion']) {
       const response = await request.post(`/api/actions/${name}`, { data: {} })
       expect(response.status()).toBe(401)
     }
   })
   test('planner generation requires authentication before model access', async ({ request }) => {
-    const response = await request.post('/api/ai/prep-plan', { data: { availableMinutes: 30 } })
-    expect(response.status()).toBe(401)
+    for (const [path, data] of [['/api/ai/prep-plan', { availableMinutes: 30 }], ['/api/ai/prep-strategy', { goal: 'Design preparation' }]] as const) {
+      const response = await request.post(path, { data })
+      expect(response.status()).toBe(401)
+    }
   })
   test('auth proxy forwards to auth worker', async ({ request }) => {
     const res = await request.get('/api/auth/ok')

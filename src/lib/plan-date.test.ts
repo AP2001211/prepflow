@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { RecordData } from 'deepspace'
 import type { Plan } from '../schemas/prep-schema'
-import { localPlanDate, todayPlans, validPlanDate, dailyPlanState } from './plan-date'
+import { localPlanDate, todayPlans, validPlanDate, dailyPlanState, dailyPlanningAccess } from './plan-date'
 const row = (id: string, data: Plan): RecordData<Plan> => ({ recordId: id, data, createdBy: 'alice', createdAt: '2026-10-02T12:00:00Z', updatedAt: '2026-10-02T12:00:00Z' })
 describe('explicit local daily plans', () => {
   it('selects only exact dates, including completed/closed plans, never general or historical plans', () => {
@@ -64,5 +64,22 @@ describe('completion-aware daily selection', () => {
     const missing = dailyPlanState([plan('missing', ['absent'])], items, '2026-10-02')
     expect(missing.completedPlans).toEqual([])
     expect(missing.planningAllowed).toBe(false)
+  })
+})
+
+describe('evolving daily planning access', () => {
+  const date = '2026-10-02'
+  const item = { recordId: 'item', createdBy: 'alice', createdAt: '', updatedAt: '', data: { intent: 'Work', prepAreaId: 'area', status: 'open' as const } }
+  const plan = row('daily', { title: 'Daily', planDate: date, planItemIds: ['item'] })
+  it('allows both incomplete and completed unclosed Plans', () => {
+    expect(dailyPlanningAccess([plan], [item], date).planningAllowed).toBe(true)
+    expect(dailyPlanningAccess([plan], [{ ...item, data: { ...item.data, status: 'completed' } }], date).planningAllowed).toBe(true)
+  })
+  it('blocks multiple records, explicit closure and unresolved membership', () => {
+    expect(dailyPlanningAccess([plan, { ...plan, recordId: 'other' }], [item], date)).toMatchObject({ conflict: true, planningAllowed: false })
+    expect(dailyPlanningAccess([{ ...plan, data: { ...plan.data, closedAt: '2026-10-02T12:00:00Z' } }], [item], date).planningAllowed).toBe(false)
+    expect(dailyPlanningAccess([plan], [], date).planningAllowed).toBe(false)
+    expect(dailyPlanningAccess([plan], [{ ...item, createdBy: 'bob' }], date).planningAllowed).toBe(false)
+    expect(dailyPlanningAccess([], [], date, false).planningAllowed).toBe(false)
   })
 })

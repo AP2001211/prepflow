@@ -9,7 +9,7 @@ test('Completed earlier today disclosure desktop and mobile', async ({ page }) =
   const html = readFileSync('/tmp/prepflow-completed-earlier.html', 'utf8')
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 900 })
-    await page.setContent(`<html data-theme="prepflow"><head><base href="${origin}/"><style>${css}</style></head><body>${html}</body></html>`)
+    await page.setContent(`<html data-theme="prepflow"><head><base href="${origin}/"><style>${css}</style></head><body><div class="authenticated-app">${html}</div></body></html>`)
     await expect(page.getByRole('heading', { name: 'Plan 2', exact: true })).toBeVisible()
     const earlier = page.locator('.today-completed-earlier')
     await expect(earlier).not.toHaveAttribute('open', '')
@@ -20,7 +20,7 @@ test('Completed earlier today disclosure desktop and mobile', async ({ page }) =
     await expect(earlier.getByRole('heading', { name: 'Plan 1', exact: true })).toBeVisible()
     await expect(earlier.getByText('2 of 2 completed · 60 min planned')).toBeVisible()
     await expect(earlier.getByRole('link')).toHaveAttribute('href', '/plans/1')
-    await expect(page.getByRole('link', { name: 'Build another plan' })).toHaveCount(0)
+    await expect(page.getByRole('link', { name: 'Plan more for today' })).toHaveCount(0)
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     await page.screenshot({ path: `/tmp/prepflow-completed-earlier-${width}.png`, fullPage: true })
   }
@@ -43,7 +43,7 @@ test('Home composition desktop and mobile fixtures', async ({ page }) => {
     for (const width of [1920, 1440, 390]) {
       await page.setViewportSize({ width, height: 1000 })
       expect(await page.evaluate(() => window.visualViewport?.scale ?? 1)).toBe(1)
-      await page.setContent(`<html data-theme="prepflow"><head><base href="${assetBase}/"><style>${css}</style></head><body>${html}</body></html>`)
+      await page.setContent(`<html data-theme="prepflow"><head><base href="${assetBase}/"><style>${css}</style></head><body><div class="authenticated-app">${html}</div></body></html>`)
       if (state === 'recent-completion') {
         // Static layout fixture: freeze the timed acknowledgement for screenshots.
         await page.addStyleTag({ content: '.home-completion { animation: none !important; }' })
@@ -71,8 +71,12 @@ test('Home composition desktop and mobile fixtures', async ({ page }) => {
       expect(columns).toBe(width >= 1100 && await page.locator('.home-secondary-rail > *').count() ? 2 : 1)
       const frame = await page.locator('.home-layout').boundingBox()
       expect(frame!.width).toBe(Math.min(width, 1640))
+      for (const card of await page.locator('.today-plan').all()) {
+        expect(await card.evaluate((node) => getComputedStyle(node).paddingTop)).toBe('14px')
+        expect(await card.locator('.today-work-row').evaluateAll((nodes) => nodes.every((node) => getComputedStyle(node).paddingTop === '8px'))).toBe(true)
+      }
       const lowerHeading = await page.locator('.home-start-other h2').evaluate((node) => ({ size: parseFloat(getComputedStyle(node).fontSize), weight: getComputedStyle(node).fontWeight }))
-      expect(lowerHeading.size).toBe(width >= 1100 ? 31 : 26)
+      expect(lowerHeading.size).toBe(24)
       expect(lowerHeading.weight).toBe('500')
       await expect(page.locator('.home-heading .home-interview')).toHaveCount(0)
       const upcoming = page.getByRole('region', { name: 'Upcoming', exact: true })
@@ -86,7 +90,7 @@ test('Home composition desktop and mobile fixtures', async ({ page }) => {
         }
       }
       if (state === 'completed') await expect(page.getByText('3 of 3 complete', { exact: false })).toBeVisible()
-      if (state === 'long-tied') await expect(page.getByText('2 interviews on Oct 6')).toBeVisible()
+      if (state === 'long-tied') { await expect(page.getByText('Google', { exact: true })).toBeVisible(); await expect(page.getByText('Amazon', { exact: true })).toBeVisible() }
       if (state === 'minimal') { await expect(page.getByRole('region', { name: 'Pick Back Up' })).toHaveCount(0); await expect(page.getByLabel('Upcoming interview context')).toHaveCount(0) }
       await page.screenshot({ path: `/tmp/prepflow-home-${state}-${width}.png`, fullPage: true })
       if (state === 'empty' && width === 1440) {
@@ -114,14 +118,14 @@ test('Focus composition desktop and mobile fixtures', async ({ page }) => {
       await page.setViewportSize({ width, height: 1000 })
       expect(await page.evaluate(() => window.visualViewport?.scale ?? 1)).toBe(1)
       const html = readFileSync(`/tmp/prepflow-focus-${state}.html`, 'utf8')
-      await page.setContent(`<html data-theme="prepflow"><head><base href="${origin}/"><style>${css}</style></head><body><main>${html}</main></body></html>`)
+      await page.setContent(`<html data-theme="prepflow"><head><base href="${origin}/"><style>${css}</style></head><body><div class="authenticated-app"><main>${html}</main></div></body></html>`)
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
       await expect(page.getByRole('button', { name: 'Complete', exact: true })).toBeVisible()
       await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible()
       await expect(page.getByRole('button', { name: 'End to switch', exact: true })).toBeVisible()
       await expect(page.getByRole('button', { name: 'Report difficulty (keep working)', exact: true })).toBeVisible()
       await expect(page.getByLabel('Focus duration', { exact: true })).toHaveCount(1)
-      await expect(page.getByRole('complementary')).toHaveCount(1)
+      await expect(page.getByRole('complementary')).toHaveCount(0)
       const notes = page.getByRole('textbox')
       await notes.fill('Working notes remain editable')
       expect(await notes.evaluate((node) => getComputedStyle(node).backgroundColor)).toBe('rgb(252, 248, 239)')

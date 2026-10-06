@@ -1,14 +1,14 @@
 import { vi } from 'vitest'
 
-export type FixtureRow = { recordId: string; createdBy: string; createdAt: string; data: Record<string, unknown> }
+export type FixtureRow = { recordId: string; createdBy: string; createdAt: string; updatedAt: string; data: Record<string, unknown> }
 /** Deterministic record boundary with caller-owned visibility; never calls a provider. */
 export function contextFixture(userId = 'alice') {
   const tables = new Map<string, FixtureRow[]>()
   function add(collection: string, id: string, data: Record<string, unknown>, owner = 'alice', createdAt = '2026-10-01T12:00:00Z') {
     const rows = tables.get(collection) ?? []
-    rows.push({ recordId: id, createdBy: owner, createdAt, data }); tables.set(collection, rows)
+    rows.push({ recordId: id, createdBy: owner, createdAt, updatedAt: createdAt, data }); tables.set(collection, rows)
   }
-  function field(row: FixtureRow, key: string) { return key === 'recordId' ? row.recordId : key === 'createdBy' ? row.createdBy : key === 'createdAt' ? row.createdAt : row.data[key] }
+  function field(row: FixtureRow, key: string) { return key === 'recordId' ? row.recordId : key === 'createdBy' ? row.createdBy : key === 'createdAt' ? row.createdAt : key === 'updatedAt' ? row.updatedAt : row.data[key] }
   const executor = vi.fn(async (name: string, params: Record<string, unknown>): Promise<unknown> => {
     const rows = (tables.get(String(params.collection)) ?? []).filter((row) => row.createdBy === userId)
     if (name === 'records.get') {

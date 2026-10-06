@@ -7,6 +7,7 @@ import { buildSystemPrompt, type buildTools } from './tools'
 import { prepReader } from './prep-context'
 import { plannerRequestSchema, recommendationSchema, validateRecommendation, type PlannerResponse } from './planner-contract'
 
+import { localPlanDate } from '../lib/plan-date'
 import { plannerErrorDiagnostics } from './planner-diagnostics'
 
 type ResolveAccess = (request: Request, env: Env) => Promise<AgentToolAccessResult>
@@ -24,11 +25,12 @@ export function registerPlannerRoutes(app: Hono<AppContext>, resolveAccess: Reso
     mark('authentication_complete')
     const input = plannerRequestSchema.safeParse(await c.req.json().catch(() => null))
     if (!input.success) return c.json({ error: 'Enter available minutes (1–1440) and an optional goal.' }, 400)
+    if (input.data.planDate && input.data.planDate < localPlanDate(input.data.timeZone!)) return c.json({ error: 'This planning date has passed. Choose today or a future date.' }, 400)
     const jwt = c.req.header('Authorization')?.slice(7)
     if (!jwt) return c.json({ error: 'Please sign in.' }, 401)
     const signal = AbortSignal.any([c.req.raw.signal, AbortSignal.timeout(90000)])
     const executor = createUserToolExecutor(c.env, access.auth.userId, signal)
-    const reader = prepReader(executor, input.data.timeZone ?? 'UTC')
+    const reader = prepReader(executor, input.data.timeZone ?? 'UTC', input.data.planDate, input.data.goal)
     const readTools: string[] = []
     let snapshotSucceeded = false
     let coverageNotices: string[] = []
@@ -40,7 +42,7 @@ export function registerPlannerRoutes(app: Hono<AppContext>, resolveAccess: Reso
       if (!selection) throw new Error('The application model is unavailable.')
       mark('model_provider_resolved', { provider: selection.provider, model: selection.modelId, availableMinutes: input.data.availableMinutes })
       const provider = createDeepSpaceAI(c.env, selection.provider, { authToken: jwt })
-      const tools = toolsFactory(executor, input.data.timeZone ?? 'UTC')
+      const tools = toolsFactory(executor, input.data.timeZone ?? 'UTC', input.data.planDate, input.data.goal)
       // We own the short loop when using generateText directly. Bound tool
       // executions as well as model steps (one step may call tools in parallel).
       const detailExecute = tools.get_work_context.execute

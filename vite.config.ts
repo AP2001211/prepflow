@@ -13,7 +13,9 @@ export default defineConfig({
   plugins: [
     react(),
     generouted(),
-    cloudflare(),
+    // Browser regressions use isolated temporary storage; normal development
+    // retains its existing persisted database.
+    cloudflare({ persistState: process.env.PREPFLOW_TEST_STORAGE ? { path: process.env.PREPFLOW_TEST_STORAGE } : true }),
     // The app id `define`, the preview-secret cleanup, and the client dedupe
     // hint — all shipped by the SDK so a fix to any of them arrives with a
     // version bump, not an app edit. The app id is read from the wrangler

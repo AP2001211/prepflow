@@ -1,4 +1,7 @@
 import { defineConfig } from '@playwright/test'
+import { mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 /**
  * Port comes from $DEEPSPACE_PORT (set by `deepspace test run [--port N]`),
@@ -25,6 +28,7 @@ export default defineConfig({
     headless: true,
   },
   webServer: {
+    env: { PREPFLOW_TEST_STORAGE: mkdtempSync(join(tmpdir(), 'prepflow-browser-')) },
     command: `npx vite --port ${PORT} --strictPort --host`,
     cwd: '..',
     // Readiness gates on the auth plane, not just vite: /api/auth/ok only

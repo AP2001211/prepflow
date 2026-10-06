@@ -19,7 +19,7 @@ const endInput = z.object({
   sessionId: id, outcome: z.enum(['completed', 'stopped', 'switched']), endedAt: datetime,
   notes: notesText.optional(), leftOff: text.optional(), nextStep: text.optional(),
 }).strict()
-const contextInput = z.object({ sessionId: id, leftOff: text.optional(), nextStep: text.optional() }).strict()
+const contextInput = z.object({ switchReason: z.enum(['stuck', 'break', 'higher_priority', 'switching_gears']).optional(), sessionId: id, leftOff: text.optional(), nextStep: text.optional() }).strict()
 const sessionIdInput = z.object({ sessionId: id }).strict()
 const stuckInput = z.object({ sessionId: id, notes: notesText.optional() }).strict()
 const planIdInput = z.object({ planId: id }).strict()
@@ -189,6 +189,12 @@ export const reportStuck = action(stuckInput, async (ctx, data) => {
   return ctx.tools.update('prep-sessions', session.recordId, { encounteredStuck: true, ...(data.notes !== undefined ? { notes: data.notes } : {}) })
 })
 
+export const acknowledgeFocusCheckIn = action(sessionIdInput, async (ctx, data) => {
+  const session = await owned<PrepSession>(ctx, 'prep-sessions', data.sessionId)
+  if (!session || session.data.state !== 'active') return failure('Only your active focus session can be confirmed.')
+  return ctx.tools.update('prep-sessions', session.recordId, { lastCheckInAt: new Date().toISOString() })
+})
+
 export const saveSessionNotes = action(z.object({ sessionId: id, notes: notesText }).strict(), async (ctx, data) => {
   const session = await owned<PrepSession>(ctx, 'prep-sessions', data.sessionId)
   if (!session || session.data.state !== 'active') return failure('Notes can only autosave on your active session.')
@@ -198,10 +204,12 @@ export const saveSessionNotes = action(z.object({ sessionId: id, notes: notesTex
 export const saveResumeContext = action(contextInput, async (ctx, data) => {
   const session = await owned<PrepSession>(ctx, 'prep-sessions', data.sessionId)
   if (!session || session.data.state !== 'ended' || !['stopped', 'switched'].includes(session.data.outcome ?? '')) return failure('Resume context belongs to a stopped or switched interval.')
+  if (data.switchReason !== undefined && session.data.outcome !== 'switched') return failure('Switch reasons belong to switched intervals.')
   return ctx.tools.update('prep-sessions', session.recordId, {
+    ...(data.switchReason !== undefined ? { switchReason: data.switchReason } : {}),
     ...(data.leftOff !== undefined ? { leftOff: data.leftOff } : {}),
     ...(data.nextStep !== undefined ? { nextStep: data.nextStep } : {}),
   })
 })
 
-export const planningActions = { createPlan, createPlanItem, addPlanItem, closePlan, startPrepSession, endPrepSession, reconcileCompletion, reportStuck, saveResumeContext, saveSessionNotes }
+export const planningActions = { createPlan, createPlanItem, addPlanItem, closePlan, startPrepSession, endPrepSession, reconcileCompletion, reportStuck, saveResumeContext, saveSessionNotes, acknowledgeFocusCheckIn }

@@ -7,12 +7,12 @@ import { MemoryRouter } from 'react-router-dom'
 import { TodayPlan } from './TodayPlan'
 import { FocusSummary } from './FocusSummary'
 import { ContinueWork } from './ContinueWork'
-const state = vi.hoisted(() => ({ plans: [] as unknown[], items: [] as unknown[], sessions: [] as unknown[], active: [] as unknown[], interviews: [] as unknown[], completion: null as { sessionId: string; title: string; startedAt: string; endedAt: string } | null }))
+const state = vi.hoisted(() => ({ plans: [] as unknown[], items: [] as unknown[], sessions: [] as unknown[], active: [] as unknown[], interviews: [] as unknown[], canStart: true, pendingIds: new Set<string>(), completion: null as { sessionId: string; title: string; startedAt: string; endedAt: string } | null }))
 vi.mock('deepspace', () => ({ useQuery: (collection: string) => ({ records: collection === 'plans' ? state.plans : collection === 'interviews' ? state.interviews : collection === 'prep-areas' ? [{ recordId: 'area', data: { name: 'DSA', notes: 'Graphs, arrays, and dynamic programming' } }, { recordId: 'design', data: { name: 'System Design', notes: 'Architecture and scaling' } }, { recordId: 'behavioral', data: { name: 'Behavioral', notes: 'Practice interview stories' } }] : [], status: 'ready' }) }))
 vi.mock('../lib/use-local-day', () => ({ useLocalDay: () => ({ planDate: '2026-10-02', timeZone: 'America/New_York' }) }))
-vi.mock('./FocusController', () => ({ useFocus: () => ({ active: state.active, completion: state.completion, sessions: { records: state.sessions }, items: { records: state.items }, loaded: true, pending: [], pendingIds: new Set(), canStart: true, draft: () => ({}) }) }))
+vi.mock('./FocusController', () => ({ useFocus: () => ({ active: state.active, completion: state.completion, sessions: { records: state.sessions }, items: { records: state.items }, loaded: true, pending: [], pendingIds: state.pendingIds, canStart: state.canStart, draft: () => ({}) }) }))
 const render = (node: React.ReactNode) => renderToStaticMarkup(<MemoryRouter>{node}</MemoryRouter>)
-beforeEach(() => { state.plans = []; state.items = []; state.sessions = []; state.active = []; state.interviews = []; state.completion = null })
+beforeEach(() => { state.plans = []; state.items = []; state.sessions = []; state.active = []; state.interviews = []; state.completion = null; state.pendingIds = new Set(); state.canStart = true })
 describe('Home state hierarchy', () => {
   it('omits the empty focus strip after loading', () => {
     expect(render(<FocusSummary />)).toBe('')
@@ -26,7 +26,7 @@ describe('Home state hierarchy', () => {
     state.plans = [{ recordId: 'today', data: { title: 'A good day', planDate: '2026-10-02', planItemIds: ['item'], budgetMinutes: 30 } }]
     state.items = [{ recordId: 'item', data: { intent: 'SQL joins', status: 'completed' } }]
     const html = render(<TodayPlan planDate="2026-10-02" />)
-    expect(html).toContain('1 of 1 complete'); expect(html).toContain('30 minute budget'); expect(html).toContain('Your plan stays here for today'); expect(html).toContain('Build another plan')
+    expect(html).toContain('1 of 1 complete'); expect(html).toContain('30 minute budget'); expect(html).toContain('You finished what you planned for today'); expect(html).toContain('Plan more for today')
   })
   it('foregrounds literal active focus with a real destination', () => {
     state.active = [{ recordId: 'session', data: { intent: 'Course Schedule II', startedAt: '2026-10-02T12:00:00Z' } }]
@@ -63,7 +63,7 @@ describe('Home composition fixtures', () => {
     expect(render(<HomeUpcoming planDate="2026-10-02" />)).not.toContain('Upcoming interview context')
     state.interviews = ['Google', 'Amazon'].map((company) => ({ recordId: company, data: { company, scheduledDate: '2026-10-06' } }))
     const html = render(<HomeUpcoming planDate="2026-10-02" />)
-    expect(html).toContain('2 interviews on Oct 6'); expect(html).not.toContain('Google'); expect(html).toContain('href="/prep"')
+    expect(html).toContain('Google'); expect(html).toContain('Amazon'); expect(html).toContain('Oct 6'); expect(html).toContain('href="/interviews"')
   })
   it('renders all composition states for isolated browser layout verification', async () => {
     const { writeFileSync } = await vi.importActual<{ writeFileSync: (path: string, contents: string) => void }>('node:fs')
@@ -97,7 +97,7 @@ describe('Home composition fixtures', () => {
 
 it('shows session instructions separately from checkpoint and editable notebook', () => {
   const html = render(<FocusAttempt record={{ recordId: 'instruction-session', data: { planItemId: 'item', prepAreaId: 'area', intent: 'Course Schedule II', instructions: 'Talk through edge cases', state: 'active', encounteredStuck: false, startedAt: '2026-10-02T12:00:00Z' }, createdAt: '', updatedAt: '', createdBy: 'alice' }} area="DSA" interview="General preparation" disabled={false} notes="User notebook only" onNotes={() => {}} onStuck={async () => true} onEnd={async () => true} />)
-  expect(html).toContain('<h5>Instructions</h5>')
+  expect(html).toContain('<summary>How to approach this</summary>'); expect(html).not.toMatch(/<details[^>]* open/); expect(html).not.toContain('No saved context')
   expect(html).toContain('Talk through edge cases')
   expect(html).toMatch(/<textarea[^>]*>User notebook only<\/textarea>/)
   expect(html).not.toContain('Left off: Talk through edge cases')
@@ -133,7 +133,7 @@ describe('Completed earlier today presentation', () => {
     expect(disclosure(html)).not.toContain('Plan 2')
     expect(html).not.toMatch(/<details[^>]*\sopen/)
     expect(html).not.toContain('Multiple incomplete plans')
-    expect(html).not.toContain('Build another plan')
+    expect(html).not.toContain('Plan more for today')
     const { writeFileSync } = await vi.importActual<{ writeFileSync: (path: string, contents: string) => void }>('node:fs')
     writeFileSync('/tmp/prepflow-completed-earlier.html', html)
   })
@@ -157,13 +157,13 @@ describe('Completed earlier today presentation', () => {
     expect(earlier.indexOf('Plan c')).toBeLessThan(earlier.indexOf('Plan b'))
     expect(earlier.indexOf('Plan b')).toBeLessThan(earlier.indexOf('Plan a'))
     expect(earlier).not.toContain('Plan newest')
-    expect(html).toContain('Build another plan')
+    expect(html).not.toContain('Plan more for today')
   })
 
   it('omits redundant disclosure for a single completed Plan', () => {
     state.items = [item('done')]; state.plans = [plan('only', ['done'], 60)]
     expect(markup()).not.toContain('today-completed-earlier')
-    expect(markup()).toContain('Build another plan')
+    expect(markup()).toContain('Plan more for today')
   })
 
   it('keeps conflict primary while allowing subordinate completed summaries', () => {
@@ -189,6 +189,53 @@ describe('Completed earlier today presentation', () => {
     html = markup()
     expect(html).toContain('<h2 class="display-title break-words">Plan unresolved</h2>')
     expect(disclosure(html)).not.toContain('Plan unresolved')
-    expect(html).not.toContain('Build another plan')
+    expect(html).not.toContain('Plan more for today')
   })
+})
+
+it('offers secondary incomplete extension while keeping exact-item Start/Resume actions', () => {
+  state.plans = [{ recordId: 'today', createdBy: 'alice', data: { title: 'Practice', planDate: '2026-10-02', planItemIds: ['new', 'attempted'] } }]
+  state.items = ['new', 'attempted'].map((recordId) => ({ recordId, createdBy: 'alice', data: { intent: recordId, prepAreaId: 'area', status: 'open' } }))
+  state.sessions = [{ data: { planItemId: 'attempted', state: 'ended' } }]
+  const html = render(<TodayPlan planDate="2026-10-02" />)
+  expect(html).toContain('class="today-extend-action"')
+  expect(html).toContain('Add to today&#x27;s plan')
+  expect(html).toContain('href="/plans/suggest?mode=daily"')
+  expect(html).toContain('>Start</button>'); expect(html).not.toContain('>Resume</button>')
+  expect(html).not.toContain('Build another plan')
+})
+
+it('Home shows only the first open actionable item, retaining exact Resume and full-plan access', () => {
+  state.items = ['done', 'first', 'second'].map((id) => ({ recordId: id, data: { intent: `Intent ${id}`, status: id === 'done' ? 'completed' : 'open', prepAreaId: 'area' } }))
+  state.plans = [{ recordId: 'today', data: { title: 'Today mix', planDate: '2026-10-02', planItemIds: ['done', 'first', 'second'], budgetMinutes: 60 } }]
+  state.sessions = [{ recordId: 'attempt', data: { planItemId: 'first', state: 'ended' } }]
+  const html = render(<TodayPlan planDate="2026-10-02" />)
+  expect(html).toContain('1 of 3 complete'); expect(html).toContain('60 minute budget')
+  expect(html).toContain('Intent first'); expect(html).not.toContain('Intent second'); expect(html).not.toContain('Intent done')
+  expect(html).toContain('Resume'); expect(html).toContain('/plans/today'); expect(html).toContain('Add to today')
+})
+
+it('Home omits pending and active work from the next action and keeps start controls guarded', () => {
+  state.items = ['pending', 'active', 'next'].map((id) => ({ recordId: id, data: { intent: `Item ${id}`, status: 'open' } }))
+  state.plans = [{ recordId: 'today', data: { title: 'Guarded plan', planDate: '2026-10-02', planItemIds: ['pending', 'active', 'next'] } }]
+  state.pendingIds.add('pending'); state.active = [{ recordId: 'active-session', data: { planItemId: 'active' } }]; state.canStart = false
+  let html = render(<TodayPlan planDate="2026-10-02" />)
+  expect(html).toContain('Item next'); expect(html).not.toContain('Item pending'); expect(html).not.toContain('Item active')
+  expect(html).toMatch(/<button[^>]*disabled/)
+  state.plans = [{ recordId: 'today', data: { title: 'Closed plan', planDate: '2026-10-02', planItemIds: ['next'], closedAt: '2026-10-02T13:00:00Z' } }]
+  html = render(<TodayPlan planDate="2026-10-02" />)
+  expect(html).not.toContain('>Start</button>'); expect(html).not.toContain('Add to today')
+  expect(html).toContain('/plans/today')
+})
+
+it('renders up to three upcoming interview identities in calendar order with My Prep links', () => {
+  state.interviews = [
+    ['late', 'Late', '2026-10-12'], ['tie-b', 'Tie B', '2026-10-06'], ['past', 'Past', '2026-10-01'],
+    ['today', 'Today interview', '2026-10-02'], ['tie-a', 'Tie A', '2026-10-06'], ['invalid', 'Invalid', '2026-02-30'],
+  ].map(([recordId, company, scheduledDate]) => ({ recordId, data: { company, role: 'Engineer', scheduledDate } }))
+  const html = render(<HomeUpcoming planDate="2026-10-02" />)
+  expect(html.indexOf('Today interview')).toBeLessThan(html.indexOf('Tie A'))
+  expect(html.indexOf('Tie A')).toBeLessThan(html.indexOf('Tie B'))
+  expect((html.match(/href="\/interviews"/g) ?? []).length).toBe(3)
+  for (const company of ['Late', 'Past', 'Invalid']) expect(html).not.toContain(`>${company}<`)
 })

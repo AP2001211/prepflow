@@ -270,20 +270,20 @@ describe('Reviewed planner acceptance (no model calls)', () => {
       { kind: 'new', prepAreaId: 'area', interviewId: 'interview', intent: 'Practice joins', estimatedMinutes: 20, reason: 'Relevant interview' },
     ],
   } })
-  it('reuses existing work, creates only new work, preserves order and requested budget without estimates', async () => {
+  it('reuses existing work, creates only new work, preserves order and accepted allocation without per-item estimates', async () => {
     const f = fixture(); const result = await f.call('acceptPrepPlan', input())
     expect(result.success).toBe(true)
     const planId = 'suggested-plan-alice-00000000-0000-4000-8000-000000000042'
-    expect(f.row('plans', planId)?.data).toEqual({ title: 'Focused prep', budgetMinutes: 60, planItemIds: ['item', `${planId}-item-1`] })
+    expect(f.row('plans', planId)?.data).toEqual({ title: 'Focused prep', budgetMinutes: 50, planItemIds: ['item', `${planId}-item-1`] })
     expect(f.row('plan-items', `${planId}-item-1`)?.data).toEqual({ prepAreaId: 'area', interviewId: 'interview', intent: 'Practice joins', status: 'open' })
     expect(f.row('plans', 'plan')?.data.planItemIds).toEqual(['item'])
-    expect(f.create).toHaveBeenCalledTimes(2)
+    expect(f.create).toHaveBeenCalledTimes(3)
     expect(f.create.mock.calls.every(([collection]) => collection !== 'prep-sessions')).toBe(true)
     expect((await f.call('acceptPrepPlan', input())).success).toBe(true)
-    expect(f.create).toHaveBeenCalledTimes(2)
+    expect(f.create).toHaveBeenCalledTimes(3)
     const changed = input(); changed.recommendation.items[1]!.intent = 'Different work'
     expect((await f.call('acceptPrepPlan', changed)).success).toBe(false)
-    expect(f.create).toHaveBeenCalledTimes(2)
+    expect(f.create).toHaveBeenCalledTimes(3)
   })
   it.each(['completed', 'pending', 'foreign-item', 'foreign-area', 'foreign-interview', 'missing-area', 'missing-interview'])('rejects %s before writes', async (mode) => {
     const f = fixture()
@@ -326,7 +326,7 @@ describe('daily plan lifecycle', () => {
   it('persists the explicit date, keeps original membership and rejects a second submission before writes', async () => {
     const f = fixture(); expect((await f.call('acceptPrepPlan', input())).success).toBe(true)
     const plan = f.row('plans', 'suggested-plan-alice-00000000-0000-4000-8000-000000000070')
-    expect(plan?.data).toEqual({ planDate: daily().planDate, title: 'Today', budgetMinutes: 30, planItemIds: ['item'] })
+    expect(plan?.data).toEqual({ planDate: daily().planDate, title: 'Today', budgetMinutes: 30, planItemIds: ['item'], appliedAcceptanceIds: ['acceptance-alice-00000000-0000-4000-8000-000000000070'] })
     expect(f.row('plans', 'plan')?.data.planItemIds).toEqual(['item'])
     expect((await f.call('acceptPrepPlan', input())).success).toBe(true)
     const before = f.create.mock.calls.length
@@ -386,7 +386,7 @@ describe('daily retries across midnight', () => {
       expect((await f.call('acceptPrepPlan', input)).success).toBe(true)
       vi.setSystemTime(new Date('2026-10-03T12:00:00Z'))
       expect((await f.call('acceptPrepPlan', input)).success).toBe(true)
-      expect(f.create).toHaveBeenCalledTimes(1)
+      expect(f.create).toHaveBeenCalledTimes(2)
       expect(f.row('plans', 'suggested-plan-alice-00000000-0000-4000-8000-000000000080')?.data.planDate).toBe('2026-10-02')
     } finally { vi.useRealTimers() }
   })
@@ -443,16 +443,17 @@ describe('sequential daily Plans', () => {
   const input = (id: string, item = 'item') => ({ requestId: id, availableMinutes: 30, daily: { planDate: localPlanDate('UTC'), timeZone: 'UTC' }, recommendation: { title: 'Today', rationale: 'Focus', items: [{ kind: 'existing', existingPlanItemId: item, estimatedMinutes: 30, reason: 'Continue' }] } })
   const first = '00000000-0000-4000-8000-000000000101'
   const second = '00000000-0000-4000-8000-000000000102'
-  it('allows another after completion without changing the first Plan and recovers its retry', async () => {
+  it('extends the same completed Plan and recovers earlier acceptance independently', async () => {
     const f = fixture()
     expect((await f.call('acceptPrepPlan', input(first))).success).toBe(true)
-    const before = structuredClone(f.row('plans', `suggested-plan-alice-${first}`))
     const session = await f.start(`suggested-plan-alice-${first}`)
     expect(f.row('prep-sessions', session)?.data.planId).toBe(`suggested-plan-alice-${first}`)
     await f.stop(session, 'completed')
     f.put('plan-items', 'next', { prepAreaId: 'area', intent: 'Next', status: 'open' })
     expect((await f.call('acceptPrepPlan', input(second, 'next'))).success).toBe(true)
-    expect(f.row('plans', `suggested-plan-alice-${first}`)).toEqual(before)
+    expect(f.row('plans', `suggested-plan-alice-${first}`)?.data).toMatchObject({ planItemIds: ['item', 'next'], budgetMinutes: 60 })
+    expect(f.row('plans', `suggested-plan-alice-${second}`)).toBeUndefined()
+    expect(f.row('plan-items', 'item')?.data.status).toBe('completed')
     expect((await f.call('acceptPrepPlan', input(first))).success).toBe(true)
     expect((await f.call('acceptPrepPlan', input('00000000-0000-4000-8000-000000000103', 'next'))).success).toBe(false)
   })
@@ -476,4 +477,348 @@ describe('sequential daily Plans', () => {
     if (mode === 'conflict') expect(result).toMatchObject({ code: 'daily_plan_conflict' })
     expect(f.create).not.toHaveBeenCalled()
   })
+})
+
+it('acknowledges only owned active focus using server time and changes no lifecycle evidence', async () => {
+  const f = fixture()
+  const id = await f.start()
+  Object.assign(f.row('prep-sessions', id)!.data, { notes: 'Notebook', encounteredStuck: true, leftOff: 'Context', nextStep: 'Next' })
+  const before = structuredClone(f.row('prep-sessions', id)!.data)
+  const serverNow = new Date('2026-10-04T15:32:00Z')
+  vi.spyOn(Date, 'now').mockReturnValue(serverNow.getTime())
+  vi.useFakeTimers(); vi.setSystemTime(serverNow)
+  try {
+    expect((await f.call('acknowledgeFocusCheckIn', { sessionId: id, lastCheckInAt: 'forged' })).success).toBe(false)
+    expect((await f.call('acknowledgeFocusCheckIn', { sessionId: id })).success).toBe(true)
+    expect(f.row('prep-sessions', id)!.data).toEqual({ ...before, lastCheckInAt: serverNow.toISOString() })
+    expect(f.update).toHaveBeenLastCalledWith('prep-sessions', id, { lastCheckInAt: serverNow.toISOString() })
+    f.put('prep-sessions', 'foreign', { ...before }, 'bob')
+    expect((await f.call('acknowledgeFocusCheckIn', { sessionId: 'foreign' })).success).toBe(false)
+    f.put('prep-sessions', 'ended', { ...before, state: 'ended', outcome: 'stopped' })
+    expect((await f.call('acknowledgeFocusCheckIn', { sessionId: 'ended' })).success).toBe(false)
+  } finally { vi.useRealTimers(); vi.restoreAllMocks() }
+})
+
+describe('switch context', () => {
+  it('persists a bounded switch reason and breadcrumb without changing difficulty, notes or end time', async () => {
+    const f = fixture(); const id = await f.start()
+    await f.stop(id, 'switched', { notes: 'final notebook' })
+    const before = structuredClone(f.row('prep-sessions', id)!.data)
+    expect((await f.call('saveResumeContext', { sessionId: id, switchReason: 'stuck', leftOff: 'edge case', nextStep: 'test it' })).success).toBe(true)
+    expect(f.row('prep-sessions', id)!.data).toEqual({ ...before, switchReason: 'stuck', leftOff: 'edge case', nextStep: 'test it' })
+    expect(before.encounteredStuck).toBe(false)
+    expect((await f.call('saveResumeContext', { sessionId: id, switchReason: 'invented' })).success).toBe(false)
+    expect((await f.call('saveResumeContext', { sessionId: id, switchReason: 'break' }, 'bob')).success).toBe(false)
+  })
+  it('rejects reasons on active and stopped sessions; ordinary stopped context still works', async () => {
+    const f = fixture(); const id = await f.start()
+    expect((await f.call('saveResumeContext', { sessionId: id, switchReason: 'break' })).success).toBe(false)
+    await f.stop(id, 'stopped')
+    expect((await f.call('saveResumeContext', { sessionId: id, switchReason: 'break' })).success).toBe(false)
+    expect((await f.call('saveResumeContext', { sessionId: id, leftOff: 'still valid' })).success).toBe(true)
+  })
+})
+
+describe('future daily acceptance', () => {
+  const input = (id = '00000000-0000-4000-8000-000000000090') => ({ requestId: id, availableMinutes: 30, daily: { planDate: '2099-01-01', timeZone: 'UTC' }, recommendation: { title: 'Future', rationale: 'Focus', items: [{ kind: 'existing', existingPlanItemId: 'item', estimatedMinutes: 30, reason: 'Continue' }] } })
+  it('persists target despite today’s incomplete plan and rejects sequential incomplete target', async () => {
+    const f = fixture(); f.put('plans', 'today', { title: 'Today', planDate: localPlanDate('UTC'), planItemIds: ['item'] })
+    expect((await f.call('acceptPrepPlan', input())).success).toBe(true)
+    expect(f.row('plans', `suggested-plan-alice-${input().requestId}`)?.data.planDate).toBe('2099-01-01')
+    expect((await f.call('acceptPrepPlan', input('00000000-0000-4000-8000-000000000091'))).success).toBe(false)
+  })
+  it('allows completed target history and fails safely on missing target membership or conflict', async () => {
+    const f = fixture(); f.put('plan-items', 'done', { status: 'completed', prepAreaId: 'area', intent: 'Done' })
+    f.put('plans', 'completed', { title: 'Completed', planDate: '2099-01-01', planItemIds: ['done'] })
+    expect((await f.call('acceptPrepPlan', input())).success).toBe(true)
+    for (const mode of ['missing', 'conflict']) {
+      const g = fixture(); g.put('plans', 'target', { title: 'Target', planDate: '2099-01-01', planItemIds: [mode === 'missing' ? 'missing' : 'item'] })
+      if (mode === 'conflict') g.put('plans', 'target2', { title: 'Target2', planDate: '2099-01-01', planItemIds: ['item'] })
+      expect((await g.call('acceptPrepPlan', input())).success).toBe(false)
+      expect(g.create).not.toHaveBeenCalled()
+    }
+  })
+})
+
+it('recovers a future accepted submission after the target passes but rejects new acceptance', async () => {
+  vi.useFakeTimers()
+  try {
+    vi.setSystemTime(new Date('2026-12-31T12:00:00Z'))
+    const f = fixture()
+    const data = { requestId: '00000000-0000-4000-8000-000000000092', availableMinutes: 30, daily: { planDate: '2027-01-01', timeZone: 'UTC' }, recommendation: { title: 'Future', rationale: 'Focus', items: [{ kind: 'existing', existingPlanItemId: 'item', estimatedMinutes: 30, reason: 'Continue' }] } }
+    expect((await f.call('acceptPrepPlan', data)).success).toBe(true)
+    vi.setSystemTime(new Date('2027-01-02T12:00:00Z'))
+    expect((await f.call('acceptPrepPlan', data)).success).toBe(true)
+    expect((await f.call('acceptPrepPlan', { ...data, requestId: '00000000-0000-4000-8000-000000000093' })).success).toBe(false)
+  } finally { vi.useRealTimers() }
+})
+
+describe('daily-created work availability', () => {
+  const input = (daily = true) => ({ requestId: '00000000-0000-4000-8000-000000000095', availableMinutes: 60, ...(daily ? { daily: { planDate: '2099-01-01', timeZone: 'UTC' } } : {}), recommendation: { title: 'Future block', rationale: 'Focus', items: [
+    { kind: 'existing', existingPlanItemId: 'item', estimatedMinutes: 30, reason: 'Continue' },
+    { kind: 'new', prepAreaId: 'area', intent: 'New work', instructions: 'Execution brief', estimatedMinutes: 30, reason: 'Practice' },
+  ] } })
+  const newId = 'suggested-plan-alice-00000000-0000-4000-8000-000000000095-item-1'
+  it.each([undefined, '2026-01-01'])('sets new daily availability without rewriting existing availability %s', async (availableFrom) => {
+    const f = fixture(); if (availableFrom) f.row('plan-items', 'item')!.data.availableFrom = availableFrom
+    const before = structuredClone(f.row('plan-items', 'item'))
+    expect((await f.call('acceptPrepPlan', input())).success).toBe(true)
+    expect(f.row('plan-items', newId)?.data.availableFrom).toBe('2099-01-01')
+    expect(f.row('plan-items', 'item')).toEqual(before)
+    expect((await f.call('acceptPrepPlan', input())).success).toBe(true)
+    expect(f.create.mock.calls.filter(([c]) => c === 'plan-items')).toHaveLength(1)
+    f.row('plan-items', newId)!.data.availableFrom = '2099-01-02'
+    expect((await f.call('acceptPrepPlan', input())).success).toBe(false)
+  })
+  it('generic acceptance does not invent an availability date', async () => {
+    const f = fixture(); expect((await f.call('acceptPrepPlan', input(false))).success).toBe(true)
+    expect(f.row('plan-items', newId)?.data.availableFrom).toBeUndefined()
+  })
+  it('retains exact availability through partial writes and lost Plan responses', async () => {
+    const f = fixture(); const create = f.create.getMockImplementation()!
+    let fail = true
+    f.create.mockImplementation(async (collection, values, id) => { if (collection === 'plans' && fail) { fail = false; throw new Error('Unavailable') }; return create(collection, values, id) })
+    expect((await f.call('acceptPrepPlan', input())).success).toBe(false)
+    expect(f.row('plan-items', newId)?.data.availableFrom).toBe('2099-01-01')
+    f.create.mockImplementation(async (collection, values, id) => { const result = await create(collection, values, id); if (collection === 'plans') throw new Error('Response lost'); return result })
+    expect((await f.call('acceptPrepPlan', input())).success).toBe(false)
+    expect((await f.call('acceptPrepPlan', input())).success).toBe(true)
+    expect(f.create.mock.calls.filter(([c]) => c === 'plan-items')).toHaveLength(1)
+  })
+  it('blocks forged automatic reuse before availability without restricting explicit early start/resume', async () => {
+    const f = fixture(); f.row('plan-items', 'item')!.data.availableFrom = '2099-01-02'
+    expect((await f.call('acceptPrepPlan', input())).success).toBe(false)
+    expect(f.create).not.toHaveBeenCalled()
+    const start = await f.call('startPrepSession', { planItemId: 'item', planId: 'plan' })
+    expect(start.success).toBe(true)
+    const id = (start as { data: { recordId: string } }).data.recordId
+    expect((await f.call('endPrepSession', { sessionId: id, outcome: 'stopped', endedAt: new Date().toISOString(), leftOff: 'Early checkpoint' })).success).toBe(true)
+    const resume = await f.call('startPrepSession', { planItemId: 'item' })
+    expect(resume.success).toBe(true)
+    expect((resume as { data: { recordId: string } }).data.recordId).not.toBe(id)
+    expect(f.row('prep-sessions', id)?.data.leftOff).toBe('Early checkpoint')
+    expect(f.row('plan-items', 'item')?.data.availableFrom).toBe('2099-01-02')
+  })
+  it('recovers accepted legacy daily work without assigning availability retroactively', async () => {
+    const f = fixture(); await f.call('acceptPrepPlan', input())
+    delete f.row('plan-items', newId)!.data.availableFrom
+    expect((await f.call('acceptPrepPlan', input())).success).toBe(true)
+    expect(f.row('plan-items', newId)?.data.availableFrom).toBeUndefined()
+  })
+})
+
+
+describe('Selective acceptance receipts', () => {
+  const id = '00000000-0000-4000-8000-000000000099'
+  const input = (selectedIndices: number[] = [0, 2]) => ({ requestId: id, selectedIndices, availableMinutes: 60, recommendation: { title: 'Selected work', rationale: 'Practice', items: [25, 25, 10].map((estimatedMinutes, i) => ({ kind: 'new', intent: `Work ${i}`, prepAreaId: 'area', estimatedMinutes, reason: 'Practice' })) } })
+  it.each([[], [0, 0], [-1], [3], [1.5]].map((indices) => ({ indices })))('rejects invalid selection %j before writes', async ({ indices }) => {
+    const f = fixture(); expect((await f.call('acceptPrepPlan', input(indices))).success).toBe(false); expect(f.create).not.toHaveBeenCalled()
+  })
+  it('sorts original positions, creates only selected work and recovers independently of later membership/budget', async () => {
+    const f = fixture(); const planId = `suggested-plan-alice-${id}`
+    expect((await f.call('acceptPrepPlan', input([2, 0]))).success).toBe(true)
+    expect(f.row('plans', planId)?.data).toMatchObject({ budgetMinutes: 35, planItemIds: [`${planId}-item-0`, `${planId}-item-2`] })
+    expect(f.row('plan-items', `${planId}-item-1`)).toBeUndefined()
+    expect(f.row('plan-acceptances', `acceptance-alice-${id}`)?.data).toMatchObject({ state: 'applied', selectedIndices: [0, 2], acceptedMinutes: 35 })
+    f.row('plans', planId)!.data.planItemIds = [`${planId}-item-0`, `${planId}-item-2`, 'item']
+    f.row('plans', planId)!.data.budgetMinutes = 80
+    const writes = f.create.mock.calls.length
+    expect((await f.call('acceptPrepPlan', input())).success).toBe(true)
+    expect(f.create).toHaveBeenCalledTimes(writes)
+    expect((await f.call('acceptPrepPlan', input([0, 1, 2]))).success).toBe(false)
+  })
+  it('reuses only selected canonical existing work and ignores unselected foreign references', async () => {
+    const f = fixture(); const original = structuredClone(f.row('plan-items', 'item')!.data)
+    const data = input([0]); data.recommendation.items = [{ kind: 'existing', existingPlanItemId: 'item', estimatedMinutes: 25, reason: 'Continue' }, { kind: 'existing', existingPlanItemId: 'foreign', estimatedMinutes: 25, reason: 'Unselected' }] as never
+    expect((await f.call('acceptPrepPlan', data)).success).toBe(true)
+    expect(f.row('plans', `suggested-plan-alice-${id}`)?.data.planItemIds).toEqual(['item'])
+    expect(f.row('plan-items', 'item')!.data).toEqual(original)
+    expect(f.create.mock.calls.filter(([collection]) => collection === 'plan-items')).toHaveLength(0)
+  })
+  it('recovers after one selected item was saved and rejects changed partial selection', async () => {
+    const f = fixture(); const create = f.create.getMockImplementation()!; let failed = false
+    f.create.mockImplementation(async (...args) => { if (!failed && args[2]?.endsWith('item-2')) { failed = true; return { success: false, error: 'Injected' } as never } return create(...args) })
+    expect((await f.call('acceptPrepPlan', input())).success).toBe(false)
+    expect((await f.call('acceptPrepPlan', input([0, 1]))).success).toBe(false)
+    expect((await f.call('acceptPrepPlan', input())).success).toBe(true)
+    expect(f.create.mock.calls.filter(([, , recordId]) => recordId?.endsWith('item-0'))).toHaveLength(1)
+  })
+  it('recovers an applied receipt after the final response was lost', async () => {
+    const f = fixture(); const update = f.update.getMockImplementation()!; let failed = false
+    f.update.mockImplementation(async (...args) => { const result = await update(...args); if (!failed && args[0] === 'plan-acceptances') { failed = true; throw new Error('Lost response') } return result })
+    expect((await f.call('acceptPrepPlan', input())).success).toBe(false)
+    const writes = f.create.mock.calls.length
+    expect((await f.call('acceptPrepPlan', input())).success).toBe(true)
+    expect(f.create).toHaveBeenCalledTimes(writes)
+  })
+  it('persists accepted rather than requested allocation', async () => {
+    const f = fixture(); await f.call('acceptPrepPlan', input([0, 1])); expect(f.row('plans', `suggested-plan-alice-${id}`)?.data.budgetMinutes).toBe(50)
+  })
+  it.each(['plan-items', 'plans', 'finalization'])('recovers failure at %s without duplicates', async (stage) => {
+    const f = fixture(); const create = f.create.getMockImplementation()!; const update = f.update.getMockImplementation()!; let failed = false
+    f.create.mockImplementation(async (...args) => { if (!failed && args[0] === stage) { failed = true; return { success: false, error: 'Injected' } as never } return create(...args) })
+    f.update.mockImplementation(async (...args) => { if (!failed && stage === 'finalization') { failed = true; return { success: false, error: 'Injected' } as never } return update(...args) })
+    expect((await f.call('acceptPrepPlan', input())).success).toBe(false)
+    expect((await f.call('acceptPrepPlan', input())).success).toBe(true)
+    expect(f.create.mock.calls.filter(([c]) => c === 'plan-items').filter(([, , itemId]) => itemId?.endsWith('item-1'))).toHaveLength(0)
+    expect(f.row('plans', `suggested-plan-alice-${id}`)?.data.budgetMinutes).toBe(35)
+  })
+})
+
+
+describe('evolving daily acceptance', () => {
+  const requestId = '00000000-0000-4000-8000-000000000200'
+  const input = () => ({ requestId, selectedIndices: [2, 0], availableMinutes: 60, daily: { planDate: '2099-01-01', timeZone: 'UTC' }, recommendation: { title: 'Additional work', rationale: 'More practice', items: [20, 20, 20].map((estimatedMinutes, index) => ({ kind: 'new', intent: `Additional ${index}`, prepAreaId: 'area', estimatedMinutes, reason: 'Practice' })) } })
+  it('rejects selected existing membership before any materialization or allocation change', async () => {
+    const f = fixture(); f.put('plans', 'daily', { planDate: '2099-01-01', title: 'Original', planItemIds: ['item'], budgetMinutes: 50 })
+    const before = structuredClone(f.row('plans', 'daily'))
+    const data = { ...input(), selectedIndices: [0], recommendation: { title: 'More', rationale: 'Practice', items: [{ kind: 'existing', existingPlanItemId: 'item', estimatedMinutes: 20, reason: 'Continue' }] } }
+    expect(await f.call('acceptPrepPlan', data)).toMatchObject({ success: false, error: expect.stringContaining('already represented') })
+    expect(f.create).not.toHaveBeenCalled(); expect(f.update).not.toHaveBeenCalled(); expect(f.row('plans', 'daily')).toEqual(before)
+  })
+  it.each(['open', 'completed'])('extends a legacy %s Plan without reconstructing its original receipt', async (status) => {
+    const f = fixture(); f.row('plan-items', 'item')!.data.status = status
+    f.put('plans', 'daily', { planDate: '2099-01-01', title: 'Original', planItemIds: ['item'], budgetMinutes: 50 })
+    const originalItem = structuredClone(f.row('plan-items', 'item'))
+    const result = await f.call('acceptPrepPlan', input()); expect(result).toMatchObject({ success: true, data: { recordId: 'daily' } })
+    const namespace = `suggested-plan-alice-${requestId}`
+    expect(f.row('plans', 'daily')?.data).toMatchObject({ title: 'Original', planDate: '2099-01-01', planItemIds: ['item', `${namespace}-item-0`, `${namespace}-item-2`], budgetMinutes: 90 })
+    expect(f.row('plan-items', 'item')).toEqual(originalItem)
+    expect(f.row('plan-items', `${namespace}-item-1`)).toBeUndefined()
+    expect(f.row('plan-items', `${namespace}-item-2`)?.data.availableFrom).toBe('2099-01-01')
+    expect((await f.call('acceptPrepPlan', input())).success).toBe(true)
+    expect(f.row('plans', 'daily')?.data.budgetMinutes).toBe(90)
+    expect(f.create.mock.calls.filter(([collection]) => collection === 'plans')).toHaveLength(0)
+    expect(f.create.mock.calls.filter(([collection]) => collection === 'plan-acceptances')).toHaveLength(1)
+  })
+  it.each(['closed', 'multiple', 'missing', 'foreign'])('rejects %s before writes', async (mode) => {
+    const f = fixture(); f.put('plans', 'daily', { planDate: '2099-01-01', title: 'Original', planItemIds: ['item'], budgetMinutes: 50, ...(mode === 'closed' ? { closedAt: '2026-10-01T12:00:00Z' } : {}) })
+    if (mode === 'multiple') f.put('plans', 'other', { planDate: '2099-01-01', title: 'Other', planItemIds: [] })
+    if (mode === 'missing') f.row('plans', 'daily')!.data.planItemIds = ['missing']
+    if (mode === 'foreign') f.row('plan-items', 'item')!.createdBy = 'bob'
+    const before = structuredClone(f.row('plans', 'daily'))
+    expect((await f.call('acceptPrepPlan', input())).success).toBe(false)
+    expect(f.create).not.toHaveBeenCalled(); expect(f.update).not.toHaveBeenCalled(); expect(f.row('plans', 'daily')).toEqual(before)
+  })
+  it.each(['before-append', 'lost-append-response', 'finalization'])('recovers %s exactly once', async (failure) => {
+    const f = fixture(); f.put('plans', 'daily', { planDate: '2099-01-01', title: 'Original', planItemIds: ['item'], budgetMinutes: 50 })
+    const update = f.update.getMockImplementation()!; let failed = false
+    f.update.mockImplementation(async (...args) => {
+      if (!failed && ((failure === 'finalization' && args[0] === 'plan-acceptances') || (failure !== 'finalization' && args[0] === 'plans'))) {
+        failed = true
+        if (failure === 'lost-append-response') { await update(...args); throw new Error('Lost response') }
+        return { success: false, error: 'Injected' } as never
+      }
+      return update(...args)
+    })
+    expect((await f.call('acceptPrepPlan', input())).success).toBe(false)
+    expect((await f.call('acceptPrepPlan', input())).success).toBe(true)
+    expect((await f.call('acceptPrepPlan', input())).success).toBe(true)
+    expect(f.row('plans', 'daily')?.data.budgetMinutes).toBe(90)
+    expect((f.row('plans', 'daily')?.data.planItemIds as string[])).toHaveLength(3)
+    expect(f.row('plans', 'daily')?.data.appliedAcceptanceIds).toEqual([`acceptance-alice-${requestId}`])
+  })
+})
+
+it('recovers both independent receipts after 50 + 40 minutes without reverting either contribution', async () => {
+  const f = fixture()
+  const make = (suffix: string, minutes: number) => ({ requestId: `00000000-0000-4000-8000-000000000${suffix}`, availableMinutes: minutes * 2, daily: { planDate: '2099-02-01', timeZone: 'UTC' }, recommendation: { title: 'Daily work', rationale: 'Practice', items: [0, 1].map((index) => ({ kind: 'new', intent: `${suffix} Work ${index}`, prepAreaId: 'area', estimatedMinutes: minutes, reason: 'Practice' })) } })
+  const first = make('301', 25), second = make('302', 20)
+  const result = await f.call('acceptPrepPlan', first)
+  expect(result.success).toBe(true)
+  const planId = `suggested-plan-alice-${first.requestId}`
+  expect(await f.call('acceptPrepPlan', second)).toMatchObject({ success: true, data: { recordId: planId } })
+  const after = structuredClone(f.row('plans', planId))
+  expect(after?.data.budgetMinutes).toBe(90)
+  expect(after?.data.planItemIds).toHaveLength(4)
+  expect((await f.call('acceptPrepPlan', first)).success).toBe(true)
+  expect((await f.call('acceptPrepPlan', second)).success).toBe(true)
+  expect(f.row('plans', planId)).toEqual(after)
+})
+
+it('evolves completed membership from 3/3 through 3/5 to 5/5 using normal Focus completion', async () => {
+  const f = fixture()
+  for (const id of ['item', 'old2', 'old3']) f.put('plan-items', id, { prepAreaId: 'area', intent: id, status: 'completed', completedAt: '2026-10-01T12:00:00Z' })
+  f.put('plans', 'daily', { title: 'Original', planDate: '2099-02-01', planItemIds: ['item', 'old2', 'old3'], budgetMinutes: 50 })
+  const requestId = '00000000-0000-4000-8000-000000000303'
+  expect((await f.call('acceptPrepPlan', { requestId, availableMinutes: 40, daily: { planDate: '2099-02-01', timeZone: 'UTC' }, recommendation: { title: 'More', rationale: 'Practice', items: [0, 1].map((i) => ({ kind: 'new', intent: `Next ${i}`, prepAreaId: 'area', estimatedMinutes: 20, reason: 'Practice' })) } })).success).toBe(true)
+  const members = f.row('plans', 'daily')!.data.planItemIds as string[]
+  expect(members).toHaveLength(5)
+  expect(members.filter((id) => f.row('plan-items', id)?.data.status === 'completed')).toHaveLength(3)
+  for (const planItemId of members.slice(3)) {
+    const start = await f.call('startPrepSession', { planItemId, planId: 'daily' })
+    expect(start.success).toBe(true)
+    const id = (start as { data: { recordId: string } }).data.recordId
+    expect((await f.stop(id, 'completed')).success).toBe(true)
+  }
+  expect(members.every((id) => f.row('plan-items', id)?.data.status === 'completed')).toBe(true)
+  expect(f.row('plan-items', 'item')?.data.completedAt).toBe('2026-10-01T12:00:00Z')
+})
+
+it('finalizes an earlier pending receipt after a later append without changing either contribution', async () => {
+  const f = fixture()
+  const make = (suffix: string) => ({ requestId: `00000000-0000-4000-8000-000000000${suffix}`, availableMinutes: 20, daily: { planDate: '2099-02-01', timeZone: 'UTC' }, recommendation: { title: 'Daily work', rationale: 'Practice', items: [{ kind: 'new', intent: `Work ${suffix}`, prepAreaId: 'area', estimatedMinutes: 20, reason: 'Practice' }] } })
+  const first = make('304'), second = make('305')
+  const update = f.update.getMockImplementation()!
+  let fail = true
+  f.update.mockImplementation(async (...args) => {
+    if (fail && args[0] === 'plan-acceptances') { fail = false; return { success: false, error: 'Injected finalization failure' } as never }
+    return update(...args)
+  })
+  expect((await f.call('acceptPrepPlan', first)).success).toBe(false)
+  expect((await f.call('acceptPrepPlan', second)).success).toBe(true)
+  const planId = `suggested-plan-alice-${first.requestId}`
+  const before = structuredClone(f.row('plans', planId))
+  expect(before?.data.budgetMinutes).toBe(40)
+  expect((await f.call('acceptPrepPlan', first)).success).toBe(true)
+  expect(f.row('plans', planId)).toEqual(before)
+  expect(f.row('plan-acceptances', `acceptance-alice-${first.requestId}`)?.data.state).toBe('applied')
+})
+
+it('recovers a partially materialized creation after another submission creates the canonical date Plan', async () => {
+  const f = fixture()
+  const make = (suffix: string) => ({ requestId: `00000000-0000-4000-8000-000000000${suffix}`, availableMinutes: 20, daily: { planDate: '2099-02-01', timeZone: 'UTC' }, recommendation: { title: 'Daily work', rationale: 'Practice', items: [{ kind: 'new', intent: `Work ${suffix}`, prepAreaId: 'area', estimatedMinutes: 20, reason: 'Practice' }] } })
+  const first = make('306'), second = make('307')
+  const create = f.create.getMockImplementation()!; let fail = true
+  f.create.mockImplementation(async (...args) => {
+    if (fail && args[0] === 'plans') { fail = false; return { success: false, error: 'Injected creation failure' } as never }
+    return create(...args)
+  })
+  expect((await f.call('acceptPrepPlan', first)).success).toBe(false)
+  const canonicalId = `suggested-plan-alice-${second.requestId}`
+  expect(await f.call('acceptPrepPlan', second)).toMatchObject({ success: true, data: { recordId: canonicalId } })
+  expect(await f.call('acceptPrepPlan', first)).toMatchObject({ success: true, data: { recordId: canonicalId } })
+  expect((await f.call('acceptPrepPlan', first)).success).toBe(true)
+  expect(f.row('plans', canonicalId)?.data.budgetMinutes).toBe(40)
+  expect(f.row('plans', canonicalId)?.data.planItemIds).toHaveLength(2)
+  expect(f.row('plans', `suggested-plan-alice-${first.requestId}`)).toBeUndefined()
+  expect(f.row('plan-acceptances', `acceptance-alice-${first.requestId}`)?.data.planId).toBe(canonicalId)
+})
+
+it('preserves a historical long Plan title and old-proposal retry when adding later suggestions', async () => {
+  const f = fixture()
+  const original = { requestId: '00000000-0000-4000-8000-000000000400', availableMinutes: 20, daily: { planDate: '2099-03-01', timeZone: 'UTC' }, recommendation: { title: 'Historical name '.repeat(10), rationale: 'Practice', items: [{ kind: 'new', intent: 'Original practice', prepAreaId: 'area', estimatedMinutes: 20, reason: 'Practice' }] } }
+  expect((await f.call('acceptPrepPlan', original)).success).toBe(true)
+  const planId = `suggested-plan-alice-${original.requestId}`
+  const more = { ...original, requestId: '00000000-0000-4000-8000-000000000401', recommendation: { ...original.recommendation, title: 'Short New Name', items: [{ ...original.recommendation.items[0], intent: 'Additional practice' }] } }
+  expect((await f.call('acceptPrepPlan', more)).success).toBe(true)
+  expect(f.row('plans', planId)?.data.title).toBe(original.recommendation.title.trim())
+  expect((await f.call('acceptPrepPlan', original)).success).toBe(true)
+  expect(f.row('plans', planId)?.data.budgetMinutes).toBe(40)
+})
+
+it.each(['stopped', 'switched', 'completed'])('difficulty survives %s while a new unfinished interval resets it', async (outcome) => {
+  const f = fixture(); const id = await f.start()
+  await f.call('reportStuck', { sessionId: id, notes: 'Working through difficulty' })
+  await f.call('reportStuck', { sessionId: id })
+  expect(f.row('prep-sessions', id)!.data.state).toBe('active')
+  expect(f.row('prep-sessions', id)!.data.outcome).toBeUndefined()
+  expect(f.row('plan-items', 'item')!.data.status).toBe('open')
+  await f.stop(id, outcome)
+  expect(f.row('prep-sessions', id)!.data).toMatchObject({ encounteredStuck: true, state: 'ended', outcome })
+  if (outcome === 'completed') expect(f.row('plan-items', 'item')!.data.status).toBe('completed')
+  else {
+    const resumed = await f.start()
+    expect(f.row('prep-sessions', resumed)!.data.encounteredStuck).toBe(false)
+  }
 })

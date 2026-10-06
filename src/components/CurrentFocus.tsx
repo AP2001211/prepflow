@@ -20,6 +20,8 @@ export function CurrentFocus() {
         predecessor={precedingInterval(record.data, focus.sessions.records)}
         area={areas.records.find((row) => row.recordId === record.data.prepAreaId)?.data.name ?? 'Prep Area'}
         interview={record.data.interviewId ? interviews.records.find((row) => row.recordId === record.data.interviewId)?.data.company ?? 'Interview' : 'General preparation'}
+        checkInSuppressed={focus.active.length !== 1 || !!focus.context || focus.awaitingCheckIn(record)}
+        onCheckIn={() => focus.acknowledgeCheckIn(record.recordId)}
         disabled={!focus.ready} onNotes={(notes) => focus.setNotes(record.recordId, notes)}
         onStuck={(notes) => focus.stuck(record.recordId, notes)}
         onEnd={(outcome) => focus.end(record.recordId, outcome)} />
